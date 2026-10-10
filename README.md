@@ -8,10 +8,13 @@ A Claude Code mod: it draws **inside Claude itself** (the desktop app, VS Code a
   <img src="docs/panel-light.png" alt="The Luff Crew panel and job bar in light theme" width="48%">
   <img src="docs/panel-dark.png" alt="The Luff Crew panel and job bar in dark theme" width="48%">
 </p>
+<p align="center">
+  <img src="docs/panel-terminal.png" alt="The Luff Crew panel in the terminal, each subagent drawn as a half-block pixel mascot" width="60%">
+</p>
 
 - **Job bar on every prompt**: while Claude works on anything, the bar above the prompt shows what you asked, one segment per model request, tool calls (and the one running now), elapsed time and estimated cost, then Done or Stopped. When Claude splits the work across subagents it becomes the job bar: title, phase, accepted tasks out of planned (one segment per task), percent done and crew size. Your 5-hour and weekly limits sit at its right edge as colored rings.
-- **Agents panel**: Running, Finished and Planned sections with cost, token and time totals. Each subagent gets a pixel deckhand whose gear shows its effort level: mop, oar, spyglass, lantern or ship's wheel.
-- **Worker steps**: subagents report their own steps (`2/5 · running tests`). A subagent that doesn't report shows its context fill in grey instead.
+- **Agents panel**: Running, Finished and Planned sections with cost, token and time totals. Each subagent is its own pixel crew member, with a body color, hat, eyes, mouth and extra of its own, kept from planned to done; what it holds shows its effort level: mop, oar, spyglass, lantern or ship's wheel. The terminal draws the same crew in colored half blocks, three lines tall.
+- **Worker steps**: subagents report their own steps (`2/5 · running tests`), as often as the `stepReports` option asks (see Configure). A subagent that doesn't report shows its context fill in grey instead.
 - **Works with any subagent**: built-in, custom or plugin agents, foreground or background, retries counted as rounds.
 - **Plan limits**: your 5-hour session and weekly usage, with % used and when each resets, above the agents. Under each meter, the tokens, estimated cost and requests counted from your local transcripts for that window.
 - **`/agents-info`** opens or closes the panel. It also opens on its own when a job with a plan starts, or when the first subagent of a session starts.
