@@ -81,9 +81,7 @@
   }
 
   // ----------------------------------------------------------------- mascots
-  // A small round deckhand of the crew. Body color follows the agent type,
-  // the gear follows effort: mop (low), oar (medium), spyglass (high),
-  // lantern (xhigh), ship's wheel (max).
+  // The agent type's color, for its name and bars.
 
   const PALETTE = ['#E07A5F', '#3D9DD9', '#2BB3A0', '#9B7BE0', '#E0A83D', '#D96BA0', '#5FAF4F']
   const KNOWN = { 'general-purpose': 0, Explore: 2, Plan: 3, 'statusline-setup': 4 }
@@ -94,92 +92,11 @@
     for (const ch of bare) h = (h * 31 + ch.charCodeAt(0)) >>> 0
     return PALETTE[h % PALETTE.length]
   }
-  const INK = '#22201d'
-  const WOOD = '#A87B4F'
-  const GOLD = '#E8B931'
 
-  const GEAR = {
-    low: r => {
-      r(6, 9, 12, 2, '#E5484D')
-      r(18, 9, 2, 1, '#E5484D')
-      r(19, 10, 2, 1, '#B83236')
-      r(21, 4, 1, 13, WOOD, 'prop')
-      r(19, 17, 5, 2, '#CFCFCB', 'prop')
-      r(19, 19, 1, 1, '#CFCFCB', 'prop')
-      r(21, 19, 1, 1, '#CFCFCB', 'prop')
-      r(23, 19, 1, 1, '#CFCFCB', 'prop')
-    },
-    medium: r => {
-      r(7, 6, 10, 3, '#F4F4F1')
-      r(7, 8, 10, 1, '#2B3A67')
-      r(11, 5, 2, 1, '#E5484D')
-      r(21, 3, 1, 13, WOOD, 'prop')
-      r(20, 15, 3, 4, '#8A6038', 'prop')
-    },
-    high: r => {
-      r(7, 6, 10, 2, '#2E2A27')
-      r(5, 8, 14, 1, INK)
-      r(11, 6, 2, 1, GOLD)
-      r(19, 11, 5, 2, '#C9A227', 'prop')
-      r(19, 11, 1, 2, '#8C6F12', 'prop')
-      r(23, 11, 1, 2, '#9BD3F5', 'prop')
-    },
-    xhigh: r => {
-      r(7, 7, 10, 3, '#C0392B')
-      r(7, 9, 10, 1, '#962D22')
-      r(11, 6, 2, 1, '#F4F4F1')
-      r(21, 7, 1, 2, INK)
-      r(20, 9, 3, 1, INK)
-      r(20, 10, 3, 4, GOLD)
-      r(20, 14, 3, 1, INK)
-      r(21, 11, 1, 2, '#FF8A3D', 'flame')
-    },
-    max: r => {
-      r(6, 5, 12, 3, '#1F2A4A')
-      r(5, 8, 14, 1, INK)
-      r(11, 6, 2, 1, GOLD)
-      // ship's wheel, rotating around its hub
-      r(20, 11, 3, 1, WOOD, 'prop')
-      r(20, 17, 3, 1, WOOD, 'prop')
-      r(18, 13, 1, 3, WOOD, 'prop')
-      r(24, 13, 1, 3, WOOD, 'prop')
-      r(19, 12, 1, 1, WOOD, 'prop')
-      r(23, 12, 1, 1, WOOD, 'prop')
-      r(19, 16, 1, 1, WOOD, 'prop')
-      r(23, 16, 1, 1, WOOD, 'prop')
-      r(21, 10, 1, 9, '#8A6038', 'prop')
-      r(17, 14, 9, 1, '#8A6038', 'prop')
-      r(21, 14, 1, 1, GOLD, 'prop')
-    },
-  }
-
-  const mascotSvg = (type, effort, running, w, h) => {
-    const groups = { bd: [], la: [], lb: [], prop: [], flame: [] }
-    const r = (x, y, ww, hh, fill, g = 'bd') => groups[g].push(`<rect x="${x}" y="${y}" width="${ww}" height="${hh}" fill="${fill}"/>`)
-    const body = colorOf(type)
-    r(7, 9, 10, 1, body)
-    r(6, 10, 12, 1, body)
-    r(5, 11, 14, 6, body)
-    r(6, 17, 12, 1, body)
-    r(3, 13, 2, 3, body)
-    r(19, 13, 2, 3, body)
-    r(8, 12, 2, 2, INK)
-    r(14, 12, 2, 2, INK)
-    r(8, 12, 1, 1, '#fff')
-    r(14, 12, 1, 1, '#fff')
-    r(11, 15, 2, 1, INK)
-    r(6, 15, 2, 1, 'rgba(255,120,140,.45)')
-    r(16, 15, 2, 1, 'rgba(255,120,140,.45)')
-    r(6, 18, 2, 3, body, 'la')
-    r(12, 18, 2, 3, body, 'la')
-    r(9, 18, 2, 3, body, 'lb')
-    r(15, 18, 2, 3, body, 'lb')
-    const gear = GEAR[effort]
-    if (gear) gear(r)
-    const g = name => (groups[name].length ? `<g class="${name}">${groups[name].join('')}</g>` : '')
-    const cls = `m e-${gear ? effort : 'none'}${running ? ' run' : ''}`
-    return `<svg class="${cls}" viewBox="0 0 26 22" width="${w}" height="${h}" shape-rendering="crispEdges" aria-hidden="true"><g class="bd">${groups.bd.join('')}${g('prop')}${g('flame')}</g>${g('la')}${g('lb')}</svg>`
-  }
+  // Each run and planned task arrives with its crew mascot already drawn
+  // (src/crew.ts, the same looks as the panel in Claude); this frames it.
+  const mascotSvg = (body, w, h) =>
+    `<svg viewBox="0 0 26 22" width="${w}" height="${h}" shape-rendering="crispEdges" aria-hidden="true">${body || ''}</svg>`
 
   // ------------------------------------------------------------------- views
 
@@ -219,7 +136,7 @@
       el.dataset.sig = sig
       el.className = `row ${a.status}`
       el.innerHTML = runRowHtml(a)
-      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.type, a.effort, a.status === 'running', 44, 37)
+      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 44, 37)
       el.querySelector('[data-k=status]').innerHTML = statusHtml(a.status, color)
     }
     el.querySelector('[data-k=name]').textContent = a.description || a.type
@@ -241,7 +158,7 @@
       .map(esc)
       .join(' · ')
     return `
-      <div class="mascot" style="opacity:.4">${mascotSvg(p.agent || 'planned', p.effort, false, 44, 37)}</div>
+      <div class="mascot" style="opacity:.4">${mascotSvg(p.mascot, 44, 37)}</div>
       <div style="min-width:0">
         <div class="name">${p.n}. ${esc(p.title)}</div>
         <div class="meta">${meta || '&nbsp;'}</div>
@@ -315,9 +232,9 @@
 
     if (ui.compact) {
       const icons = [
-        ...running.map(a => ({ k: a.id, type: a.type, effort: a.effort, run: true, dim: false })),
-        ...finished.map(a => ({ k: a.id, type: a.type, effort: a.effort, run: false, dim: false })),
-        ...planned.map(p => ({ k: 'p' + p.n, type: p.agent || 'planned', effort: p.effort, run: false, dim: true })),
+        ...running.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
+        ...finished.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
+        ...planned.map(p => ({ k: 'p' + p.n, mascot: p.mascot, dim: true })),
       ]
       const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 38) - 1)
       const shown = icons.slice(0, max)
@@ -326,7 +243,7 @@
       if ($('#compact').dataset.sig === sig) return
       $('#compact').dataset.sig = sig
       $('#compact').innerHTML =
-        shown.map(i => `<span class="mini${i.dim ? ' dim' : ''}" title="">${mascotSvg(i.type, i.effort, i.run, 34, 29)}</span>`).join('') +
+        shown.map(i => `<span class="mini${i.dim ? ' dim' : ''}" title="">${mascotSvg(i.mascot, 34, 29)}</span>`).join('') +
         (icons.length > shown.length ? `<span class="more">+${icons.length - shown.length}</span>` : '')
       return
     }

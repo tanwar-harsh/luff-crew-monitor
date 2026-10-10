@@ -82,6 +82,8 @@ export interface AgentRun {
   step?: StepReport
   /** Nesting level: 1 for a subagent of the main thread, 2 for its own subagents. */
   depth: number
+  /** The run's crew mascot as an SVG group on a 26×22 grid; set for the browser view. */
+  mascot?: string
 }
 
 export interface Totals {
@@ -97,6 +99,8 @@ export interface Totals {
 export interface PlannedView extends PlannedTask {
   /** 1-based position in the plan. */
   n: number
+  /** The task's crew mascot as an SVG group on a 26×22 grid; set for the browser view. */
+  mascot?: string
 }
 
 export interface FlowView extends Flow {

@@ -331,9 +331,7 @@ footer code { font-size: 11.5px; }
   }
 
   // ----------------------------------------------------------------- mascots
-  // A small round deckhand of the crew. Body color follows the agent type,
-  // the gear follows effort: mop (low), oar (medium), spyglass (high),
-  // lantern (xhigh), ship's wheel (max).
+  // The agent type's color, for its name and bars.
 
   const PALETTE = ['#E07A5F', '#3D9DD9', '#2BB3A0', '#9B7BE0', '#E0A83D', '#D96BA0', '#5FAF4F']
   const KNOWN = { 'general-purpose': 0, Explore: 2, Plan: 3, 'statusline-setup': 4 }
@@ -344,92 +342,11 @@ footer code { font-size: 11.5px; }
     for (const ch of bare) h = (h * 31 + ch.charCodeAt(0)) >>> 0
     return PALETTE[h % PALETTE.length]
   }
-  const INK = '#22201d'
-  const WOOD = '#A87B4F'
-  const GOLD = '#E8B931'
 
-  const GEAR = {
-    low: r => {
-      r(6, 9, 12, 2, '#E5484D')
-      r(18, 9, 2, 1, '#E5484D')
-      r(19, 10, 2, 1, '#B83236')
-      r(21, 4, 1, 13, WOOD, 'prop')
-      r(19, 17, 5, 2, '#CFCFCB', 'prop')
-      r(19, 19, 1, 1, '#CFCFCB', 'prop')
-      r(21, 19, 1, 1, '#CFCFCB', 'prop')
-      r(23, 19, 1, 1, '#CFCFCB', 'prop')
-    },
-    medium: r => {
-      r(7, 6, 10, 3, '#F4F4F1')
-      r(7, 8, 10, 1, '#2B3A67')
-      r(11, 5, 2, 1, '#E5484D')
-      r(21, 3, 1, 13, WOOD, 'prop')
-      r(20, 15, 3, 4, '#8A6038', 'prop')
-    },
-    high: r => {
-      r(7, 6, 10, 2, '#2E2A27')
-      r(5, 8, 14, 1, INK)
-      r(11, 6, 2, 1, GOLD)
-      r(19, 11, 5, 2, '#C9A227', 'prop')
-      r(19, 11, 1, 2, '#8C6F12', 'prop')
-      r(23, 11, 1, 2, '#9BD3F5', 'prop')
-    },
-    xhigh: r => {
-      r(7, 7, 10, 3, '#C0392B')
-      r(7, 9, 10, 1, '#962D22')
-      r(11, 6, 2, 1, '#F4F4F1')
-      r(21, 7, 1, 2, INK)
-      r(20, 9, 3, 1, INK)
-      r(20, 10, 3, 4, GOLD)
-      r(20, 14, 3, 1, INK)
-      r(21, 11, 1, 2, '#FF8A3D', 'flame')
-    },
-    max: r => {
-      r(6, 5, 12, 3, '#1F2A4A')
-      r(5, 8, 14, 1, INK)
-      r(11, 6, 2, 1, GOLD)
-      // ship's wheel, rotating around its hub
-      r(20, 11, 3, 1, WOOD, 'prop')
-      r(20, 17, 3, 1, WOOD, 'prop')
-      r(18, 13, 1, 3, WOOD, 'prop')
-      r(24, 13, 1, 3, WOOD, 'prop')
-      r(19, 12, 1, 1, WOOD, 'prop')
-      r(23, 12, 1, 1, WOOD, 'prop')
-      r(19, 16, 1, 1, WOOD, 'prop')
-      r(23, 16, 1, 1, WOOD, 'prop')
-      r(21, 10, 1, 9, '#8A6038', 'prop')
-      r(17, 14, 9, 1, '#8A6038', 'prop')
-      r(21, 14, 1, 1, GOLD, 'prop')
-    },
-  }
-
-  const mascotSvg = (type, effort, running, w, h) => {
-    const groups = { bd: [], la: [], lb: [], prop: [], flame: [] }
-    const r = (x, y, ww, hh, fill, g = 'bd') => groups[g].push(\`<rect x="\${x}" y="\${y}" width="\${ww}" height="\${hh}" fill="\${fill}"/>\`)
-    const body = colorOf(type)
-    r(7, 9, 10, 1, body)
-    r(6, 10, 12, 1, body)
-    r(5, 11, 14, 6, body)
-    r(6, 17, 12, 1, body)
-    r(3, 13, 2, 3, body)
-    r(19, 13, 2, 3, body)
-    r(8, 12, 2, 2, INK)
-    r(14, 12, 2, 2, INK)
-    r(8, 12, 1, 1, '#fff')
-    r(14, 12, 1, 1, '#fff')
-    r(11, 15, 2, 1, INK)
-    r(6, 15, 2, 1, 'rgba(255,120,140,.45)')
-    r(16, 15, 2, 1, 'rgba(255,120,140,.45)')
-    r(6, 18, 2, 3, body, 'la')
-    r(12, 18, 2, 3, body, 'la')
-    r(9, 18, 2, 3, body, 'lb')
-    r(15, 18, 2, 3, body, 'lb')
-    const gear = GEAR[effort]
-    if (gear) gear(r)
-    const g = name => (groups[name].length ? \`<g class="\${name}">\${groups[name].join('')}</g>\` : '')
-    const cls = \`m e-\${gear ? effort : 'none'}\${running ? ' run' : ''}\`
-    return \`<svg class="\${cls}" viewBox="0 0 26 22" width="\${w}" height="\${h}" shape-rendering="crispEdges" aria-hidden="true"><g class="bd">\${groups.bd.join('')}\${g('prop')}\${g('flame')}</g>\${g('la')}\${g('lb')}</svg>\`
-  }
+  // Each run and planned task arrives with its crew mascot already drawn
+  // (src/crew.ts, the same looks as the panel in Claude); this frames it.
+  const mascotSvg = (body, w, h) =>
+    \`<svg viewBox="0 0 26 22" width="\${w}" height="\${h}" shape-rendering="crispEdges" aria-hidden="true">\${body || ''}</svg>\`
 
   // ------------------------------------------------------------------- views
 
@@ -469,7 +386,7 @@ footer code { font-size: 11.5px; }
       el.dataset.sig = sig
       el.className = \`row \${a.status}\`
       el.innerHTML = runRowHtml(a)
-      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.type, a.effort, a.status === 'running', 44, 37)
+      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 44, 37)
       el.querySelector('[data-k=status]').innerHTML = statusHtml(a.status, color)
     }
     el.querySelector('[data-k=name]').textContent = a.description || a.type
@@ -491,7 +408,7 @@ footer code { font-size: 11.5px; }
       .map(esc)
       .join(' \xB7 ')
     return \`
-      <div class="mascot" style="opacity:.4">\${mascotSvg(p.agent || 'planned', p.effort, false, 44, 37)}</div>
+      <div class="mascot" style="opacity:.4">\${mascotSvg(p.mascot, 44, 37)}</div>
       <div style="min-width:0">
         <div class="name">\${p.n}. \${esc(p.title)}</div>
         <div class="meta">\${meta || '&nbsp;'}</div>
@@ -565,9 +482,9 @@ footer code { font-size: 11.5px; }
 
     if (ui.compact) {
       const icons = [
-        ...running.map(a => ({ k: a.id, type: a.type, effort: a.effort, run: true, dim: false })),
-        ...finished.map(a => ({ k: a.id, type: a.type, effort: a.effort, run: false, dim: false })),
-        ...planned.map(p => ({ k: 'p' + p.n, type: p.agent || 'planned', effort: p.effort, run: false, dim: true })),
+        ...running.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
+        ...finished.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
+        ...planned.map(p => ({ k: 'p' + p.n, mascot: p.mascot, dim: true })),
       ]
       const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 38) - 1)
       const shown = icons.slice(0, max)
@@ -576,7 +493,7 @@ footer code { font-size: 11.5px; }
       if ($('#compact').dataset.sig === sig) return
       $('#compact').dataset.sig = sig
       $('#compact').innerHTML =
-        shown.map(i => \`<span class="mini\${i.dim ? ' dim' : ''}" title="">\${mascotSvg(i.type, i.effort, i.run, 34, 29)}</span>\`).join('') +
+        shown.map(i => \`<span class="mini\${i.dim ? ' dim' : ''}" title="">\${mascotSvg(i.mascot, 34, 29)}</span>\`).join('') +
         (icons.length > shown.length ? \`<span class="more">+\${icons.length - shown.length}</span>\` : '')
       return
     }
@@ -18705,6 +18622,150 @@ var StdioServerTransport = class {
 // src/monitor.ts
 init_define_LUFF_CREW_ASSETS();
 
+// src/crew.ts
+init_define_LUFF_CREW_ASSETS();
+var INK = "#22201d", WOOD = "#A87B4F", GOLD = "#E8B931", WHITE = "#F4F4F1", BROWN = "#6B4A2B", LENS = "#CFEFFF", BODY = ["#E07A5F", "#3D9DD9", "#6CBF4A", "#9B7BE0", "#F2C94C", "#2BB3A0", "#E86AA6", "#4C6EF5", "#F08C2E", "#3CCFCF", "#E5484D", "#B5895A"], HATS = ["#E5484D", "#2B3A67", "#F2C94C", "#2E2A27", "#7CD35B", "#9B7BE0", "#F08C2E", "#3D9DD9", "#E86AA6", "#1F2A4A"], HAT_STYLES = ["bandana", "sailor", "tricorne", "beanie", "captain", "headphones", "antennae", "spikes", "bow"], EYE_STYLES = ["round", "big", "sleepy", "patch", "glasses", "fierce"], MOUTH_STYLES = ["smile", "flat", "open", "mustache", "beard", "grin"], EXTRA_STYLES = ["none", "blush", "scarf", "belt"], pick2 = (list, n) => list[(n % list.length + list.length) % list.length];
+function lookOf(slot) {
+  let body = pick2(BODY, slot), notBody = (c, n) => c === body ? pick2(HATS, n + 1) : c;
+  return {
+    body,
+    hat: pick2(HAT_STYLES, slot * 2 + 1),
+    hatColor: notBody(pick2(HATS, slot * 7 + 3), slot * 7 + 3),
+    eyes: pick2(EYE_STYLES, slot * 5 + 1),
+    mouth: pick2(MOUTH_STYLES, slot + 3),
+    extra: pick2(EXTRA_STYLES, slot * 3 + 1),
+    extraColor: notBody(pick2(HATS, slot * 3), slot * 3)
+  };
+}
+function hashOf(s) {
+  let h = 0;
+  for (let ch of s) h = h * 31 + ch.charCodeAt(0) >>> 0;
+  return h;
+}
+function crewSlots(job, keys) {
+  let base = hashOf(job) % BODY.length, index = /* @__PURE__ */ new Map();
+  for (let k of keys) index.has(k) || index.set(k, index.size);
+  return (key) => base + (index.get(key) ?? hashOf(key));
+}
+function shade(hex, f) {
+  return "#" + [1, 3, 5].map((i) => Math.round(Math.min(255, parseInt(hex.slice(i, i + 2), 16) * f)).toString(16).padStart(2, "0")).join("");
+}
+var GEAR = {
+  // A mop that swishes.
+  low: (r) => {
+    r(21, 4, 1, 13, WOOD, "prop"), r(19, 17, 5, 2, "#CFCFCB", "prop"), r(19, 19, 1, 1, "#CFCFCB", "prop"), r(21, 19, 1, 1, "#CFCFCB", "prop"), r(23, 19, 1, 1, "#CFCFCB", "prop");
+  },
+  // An oar that rows.
+  medium: (r) => {
+    r(21, 3, 1, 13, WOOD, "prop"), r(20, 15, 3, 4, "#8A6038", "prop");
+  },
+  // A spyglass that scans.
+  high: (r) => {
+    r(19, 11, 5, 2, "#C9A227", "prop"), r(19, 11, 1, 2, "#8C6F12", "prop"), r(23, 11, 1, 2, "#9BD3F5", "prop");
+  },
+  // A lantern whose flame flickers.
+  xhigh: (r) => {
+    r(21, 7, 1, 2, INK), r(20, 9, 3, 1, INK), r(20, 10, 3, 4, GOLD), r(20, 14, 3, 1, INK), r(21, 11, 1, 2, "#FF8A3D", "flame");
+  },
+  // A ship's wheel that turns.
+  max: (r) => {
+    r(20, 11, 3, 1, WOOD, "prop"), r(20, 17, 3, 1, WOOD, "prop"), r(18, 13, 1, 3, WOOD, "prop"), r(24, 13, 1, 3, WOOD, "prop"), r(19, 12, 1, 1, WOOD, "prop"), r(23, 12, 1, 1, WOOD, "prop"), r(19, 16, 1, 1, WOOD, "prop"), r(23, 16, 1, 1, WOOD, "prop"), r(21, 10, 1, 9, "#8A6038", "prop"), r(17, 14, 9, 1, "#8A6038", "prop"), r(21, 14, 1, 1, GOLD, "prop");
+  }
+}, EYES = {
+  round: (r) => {
+    for (let x of [8, 14])
+      r(x, 12, 2, 2, INK), r(x, 12, 1, 1, "#fff");
+  },
+  big: (r) => {
+    for (let x of [8, 14])
+      r(x, 11, 2, 3, "#fff"), r(x + 1, 12, 1, 2, INK);
+  },
+  sleepy: (r, L) => {
+    for (let x of [8, 14])
+      r(x, 12, 2, 1, shade(L.body, 0.7)), r(x, 13, 2, 1, INK);
+  },
+  patch: (r) => {
+    r(5, 10, 14, 1, INK), r(7, 11, 4, 3, INK), r(14, 12, 2, 2, INK), r(14, 12, 1, 1, "#fff");
+  },
+  glasses: (r) => {
+    for (let x of [7, 13])
+      r(x, 11, 4, 4, INK), r(x + 1, 12, 2, 2, LENS), r(x + 2, 13, 1, 1, INK);
+    r(11, 12, 2, 1, INK);
+  },
+  fierce: (r) => {
+    for (let x of [8, 14])
+      r(x, 12, 2, 2, INK), r(x, 12, 1, 1, "#fff");
+    r(7, 10, 1, 1, INK), r(8, 11, 2, 1, INK), r(16, 10, 1, 1, INK), r(14, 11, 2, 1, INK);
+  }
+}, MOUTHS = {
+  smile: (r) => {
+    r(10, 15, 1, 1, INK), r(11, 16, 2, 1, INK), r(13, 15, 1, 1, INK);
+  },
+  flat: (r) => r(11, 15, 2, 1, INK),
+  open: (r) => {
+    r(11, 15, 2, 2, "#7A2230"), r(11, 16, 2, 1, "#E5737F");
+  },
+  mustache: (r) => {
+    r(9, 15, 6, 1, BROWN), r(8, 16, 1, 1, BROWN), r(15, 16, 1, 1, BROWN);
+  },
+  beard: (r) => {
+    r(7, 15, 10, 1, BROWN), r(6, 16, 12, 1, BROWN), r(7, 17, 10, 1, BROWN), r(11, 15, 2, 1, "#7A2230");
+  },
+  grin: (r) => {
+    r(10, 15, 4, 2, INK), r(11, 15, 1, 1, "#fff"), r(12, 15, 1, 1, "#fff");
+  }
+}, EXTRAS = {
+  none: () => {
+  },
+  blush: (r, L) => {
+    r(6, 15, 2, 1, "rgba(255,120,140,.6)"), r(16, 15, 2, 1, "rgba(255,120,140,.6)"), r(7, 14, 1, 1, shade(L.body, 0.7)), r(16, 14, 1, 1, shade(L.body, 0.7));
+  },
+  scarf: (r, L) => {
+    r(6, 17, 12, 1, L.extraColor), r(15, 18, 2, 2, L.extraColor);
+  },
+  belt: (r) => {
+    r(6, 17, 12, 1, "#3A2A1E"), r(11, 17, 2, 1, GOLD);
+  }
+}, HATS_DRAW = {
+  bandana: (r, c, d) => {
+    r(6, 9, 12, 2, c), r(18, 9, 2, 1, c), r(19, 10, 2, 1, d), r(8, 9, 1, 1, "#fff"), r(12, 10, 1, 1, "#fff"), r(15, 9, 1, 1, "#fff");
+  },
+  sailor: (r, c) => {
+    r(7, 6, 10, 3, WHITE), r(7, 8, 10, 1, c), r(11, 5, 2, 1, c);
+  },
+  tricorne: (r, c) => {
+    r(7, 6, 10, 2, c), r(5, 8, 14, 1, INK), r(11, 6, 2, 1, GOLD);
+  },
+  beanie: (r, c, d) => {
+    r(7, 7, 10, 3, c), r(7, 9, 10, 1, d), r(11, 6, 2, 1, WHITE);
+  },
+  captain: (r, c) => {
+    r(6, 5, 12, 3, c), r(5, 8, 14, 1, INK), r(11, 6, 2, 1, GOLD);
+  },
+  headphones: (r, c) => {
+    r(7, 7, 10, 1, INK), r(6, 8, 1, 2, INK), r(17, 8, 1, 2, INK), r(4, 10, 3, 4, c), r(17, 10, 3, 4, c);
+  },
+  antennae: (r, c) => {
+    r(8, 6, 1, 3, INK), r(15, 6, 1, 3, INK), r(7, 4, 3, 2, c), r(14, 4, 3, 2, c);
+  },
+  spikes: (r, c) => {
+    r(7, 8, 10, 1, c), r(7, 7, 2, 1, c), r(10, 5, 2, 3, c), r(13, 6, 2, 2, c), r(16, 7, 1, 1, c);
+  },
+  bow: (r, c, d) => {
+    r(12, 6, 3, 3, c), r(16, 6, 3, 3, c), r(15, 7, 1, 1, d);
+  }
+};
+function mascot(x, y, scale, slot, effort, opts = {}) {
+  let groups = { bd: [], la: [], lb: [], prop: [], flame: [] }, r = (px, py, w, h, fill, g2 = "bd") => {
+    (groups[g2] ??= []).push(`<rect x="${px}" y="${py}" width="${w}" height="${h}" fill="${fill}"/>`);
+  }, L = lookOf(slot), B = L.body, D = shade(B, 0.72);
+  r(7, 9, 10, 1, B), r(6, 10, 12, 1, B), r(5, 11, 14, 6, B), r(6, 17, 12, 1, B), r(3, 13, 2, 3, B), r(19, 13, 2, 3, B), r(6, 18, 2, 3, D, "la"), r(12, 18, 2, 3, D, "la"), r(9, 18, 2, 3, D, "lb"), r(15, 18, 2, 3, D, "lb"), EXTRAS[L.extra](r, L), EYES[L.eyes](r, L), MOUTHS[L.mouth](r), HATS_DRAW[L.hat](r, L.hatColor, shade(L.hatColor, 0.72));
+  let gear = effort ? GEAR[effort] : void 0;
+  gear?.(r);
+  let g = (name) => (groups[name] ?? []).length ? `<g class="${name}">${(groups[name] ?? []).join("")}</g>` : "", cls = `m e-${gear ? effort : "none"}${opts.running ? " run" : ""}`;
+  return `<g transform="translate(${x},${y}) scale(${scale})" opacity="${opts.dim ? 0.6 : 1}" shape-rendering="crispEdges"><g class="${cls}"><g class="bd">${(groups.bd ?? []).join("")}${g("prop")}${g("flame")}</g>${g("la")}${g("lb")}</g></g>`;
+}
+
 // src/dashboard/server.ts
 init_define_LUFF_CREW_ASSETS();
 import { randomBytes } from "node:crypto";
@@ -18830,7 +18891,7 @@ var STRINGS = {
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.2";
+var VERSION = "1.6.3";
 
 // src/dashboard/page.ts
 var cached2 = null;
@@ -19269,15 +19330,6 @@ function openBrowser(url) {
   }
 }
 
-// src/tracker.ts
-init_define_LUFF_CREW_ASSETS();
-import { existsSync as existsSync2 } from "node:fs";
-import { open as open3, readdir as readdir3, readFile, stat as stat4 } from "node:fs/promises";
-import { basename as basename2, dirname, join as join4 } from "node:path";
-
-// src/flow.ts
-init_define_LUFF_CREW_ASSETS();
-
 // src/format.ts
 init_define_LUFF_CREW_ASSETS();
 var fmtTokens = (n) => n >= 999500 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`, fmtCost = (usd) => usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`;
@@ -19297,6 +19349,15 @@ var normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), 
   let w = Math.max(0, Math.floor(Number.isFinite(width) ? width : 0)), filled = Math.round(Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0)) * w);
   return on.repeat(filled) + off.repeat(Math.max(0, w - filled));
 };
+
+// src/tracker.ts
+init_define_LUFF_CREW_ASSETS();
+import { existsSync as existsSync2 } from "node:fs";
+import { open as open3, readdir as readdir3, readFile, stat as stat4 } from "node:fs/promises";
+import { basename as basename2, dirname, join as join4 } from "node:path";
+
+// src/flow.ts
+init_define_LUFF_CREW_ASSETS();
 
 // src/types.ts
 init_define_LUFF_CREW_ASSETS();
@@ -19717,7 +19778,7 @@ var TICK_MS = 1e3, Monitor = class {
     }), this.polling;
   }
   snapshot() {
-    let snap = this.tracker.snapshot(this.lang);
+    let snap = withMascots(this.tracker.snapshot(this.lang));
     return { ...snap, limits: limitsView(readPlanLimits(), this.usage, snap.now) };
   }
   async refresh() {
@@ -19764,6 +19825,14 @@ var TICK_MS = 1e3, Monitor = class {
     this.timer && clearInterval(this.timer), this.timer = null, await this.dashboard?.close(), this.dashboard = null;
   }
 };
+function withMascots(snap) {
+  let keyOf = (a) => normalize(a.description) || a.id, slotOf = crewSlots(snap.flow?.title ?? "", [...(snap.flow?.tasks ?? []).map((t) => normalize(t.title)), ...snap.agents.map(keyOf)]);
+  return {
+    ...snap,
+    agents: snap.agents.map((a) => ({ ...a, mascot: mascot(0, 0, 1, slotOf(keyOf(a)), a.effort, { running: a.status === "running" }) })),
+    planned: snap.planned.map((p) => ({ ...p, mascot: mascot(0, 0, 1, slotOf(normalize(p.title)), p.effort) }))
+  };
+}
 
 // src/render-text.ts
 init_define_LUFF_CREW_ASSETS();

@@ -1,9 +1,11 @@
 import type { Config, Lang } from './config.ts'
 import { resolveLang } from './config.ts'
+import { crewSlots, mascot } from './crew.ts'
 import { startDashboard } from './dashboard/server.ts'
 import type { Dashboard } from './dashboard/server.ts'
 import { limitsView, readPlanLimits, UsageScanner } from './limits.ts'
 import { openBrowser } from './open.ts'
+import { normalize } from './format.ts'
 import { CrewTracker } from './tracker.ts'
 import type { FollowMode } from './tracker.ts'
 import type { Snapshot } from './types.ts'
@@ -39,7 +41,7 @@ export class Monitor {
   }
 
   snapshot(): Snapshot {
-    const snap = this.tracker.snapshot(this.lang)
+    const snap = withMascots(this.tracker.snapshot(this.lang))
     return { ...snap, limits: limitsView(readPlanLimits(), this.usage, snap.now) }
   }
 
@@ -104,5 +106,19 @@ export class Monitor {
     this.timer = null
     await this.dashboard?.close()
     this.dashboard = null
+  }
+}
+
+/**
+ * Gives every run and planned task its crew mascot, picked as the mod picks
+ * them (planned titles first, in plan order), so the browser shows the same crew.
+ */
+export function withMascots(snap: Snapshot): Snapshot {
+  const keyOf = (a: { description: string; id: string }): string => normalize(a.description) || a.id
+  const slotOf = crewSlots(snap.flow?.title ?? '', [...(snap.flow?.tasks ?? []).map(t => normalize(t.title)), ...snap.agents.map(keyOf)])
+  return {
+    ...snap,
+    agents: snap.agents.map(a => ({ ...a, mascot: mascot(0, 0, 1, slotOf(keyOf(a)), a.effort, { running: a.status === 'running' }) })),
+    planned: snap.planned.map(p => ({ ...p, mascot: mascot(0, 0, 1, slotOf(normalize(p.title)), p.effort) })),
   }
 }

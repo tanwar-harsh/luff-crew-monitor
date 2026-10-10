@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.3 — 2026-10-11
+
+- **The browser view (`/agents-web`) shows the crew too**: every agent and planned task there is now the same crew member as in Claude's panel (its own color, hat, eyes, mouth and extra, with gear for its effort), instead of a look-alike per agent type. The looks live in one shared module, `src/crew.ts`, and the server sends each one drawn, so the panel and the browser can't drift apart.
+
 ## 1.6.2 — 2026-10-10
 
 - **Job bar follows the crew**: the done count, bar segments and percent now advance as each subagent finishes, instead of waiting for the main agent's `progress` call. A reported `done` still wins when it is higher.
