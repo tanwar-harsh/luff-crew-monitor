@@ -1,0 +1,19 @@
+{
+  "name": "luff-crew",
+  "owner": {
+    "name": "Harsh Tanwar",
+    "url": "https://github.com/tanwar-harsh"
+  },
+  "metadata": {
+    "description": "Luff Crew Monitor: see what every helper Claude is doing, and what it costs, live."
+  },
+  "plugins": [
+    {
+      "name": "luff-crew-monitor",
+      "source": "./",
+      "description": "Live dashboard of every subagent: model, effort, steps, context, estimated cost and time, plus job progress.",
+      "version": "1.0.0",
+      "category": "productivity"
+    }
+  ]
+}

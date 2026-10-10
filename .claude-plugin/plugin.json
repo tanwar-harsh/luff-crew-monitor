@@ -1,0 +1,27 @@
+{
+  "name": "luff-crew-monitor",
+  "version": "1.0.0",
+  "description": "Live dashboard of every subagent: model, effort, steps, context, estimated cost and time, plus job progress. Adds /agents-info.",
+  "author": {
+    "name": "Harsh Tanwar",
+    "url": "https://github.com/tanwar-harsh"
+  },
+  "homepage": "https://github.com/tanwar-harsh/luff-crew-monitor",
+  "repository": "https://github.com/tanwar-harsh/luff-crew-monitor",
+  "license": "MIT",
+  "keywords": [
+    "subagents",
+    "dashboard",
+    "progress",
+    "cost",
+    "mcp"
+  ],
+  "mcpServers": {
+    "luff-crew": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/dist/luff-crew.mjs"
+      ]
+    }
+  }
+}

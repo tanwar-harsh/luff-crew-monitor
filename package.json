@@ -1,0 +1,51 @@
+{
+  "name": "luff-crew-monitor",
+  "version": "1.0.0",
+  "description": "MCP server for Claude Code: a live dashboard of every subagent (model, effort, steps, context, estimated cost, time) plus orchestrator progress tracking.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "subagents",
+    "dashboard",
+    "progress",
+    "cost"
+  ],
+  "author": "Harsh Tanwar <harshtanwar25@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/tanwar-harsh/luff-crew-monitor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanwar-harsh/luff-crew-monitor.git"
+  },
+  "bugs": "https://github.com/tanwar-harsh/luff-crew-monitor/issues",
+  "type": "module",
+  "bin": {
+    "luff-crew-monitor": "dist/luff-crew.mjs"
+  },
+  "files": [
+    "dist",
+    "commands",
+    ".claude-plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "check": "npm run typecheck && npm run build && npm test",
+    "demo": "node scripts/demo.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "zod": "^4.6.5"
+  }
+}
