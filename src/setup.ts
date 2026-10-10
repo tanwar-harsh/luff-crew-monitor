@@ -133,7 +133,7 @@ export function setup(opts: SetupOptions): number {
 Next:
   1. Restart Claude Code (or run /mcp) so it picks up the server.
   2. Give Claude a job big enough for a few subagents, then type /agents-info.
-Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen on).`)
+Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen off).`)
   return 0
 }
 

@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util'
 
 import { loadConfig } from './config.ts'
 import { runMcpServer, SERVER_NAME } from './mcp.ts'
+import { findSessionTranscript } from './paths.ts'
 import { Monitor } from './monitor.ts'
 import { renderStatus } from './render-text.ts'
 import { doctor, setup, uninstall } from './setup.ts'
@@ -22,7 +23,7 @@ Usage
       --dry-run                       Show what would change
   luff-crew-monitor dashboard       Open the dashboard without Claude (follows the latest session)
       --project <dir>                 Follow the sessions of this folder instead
-      --session <id>                  Follow one session of that folder
+      --session <id>                  Follow one session (found in any project folder)
       --port <n>  --no-open
   luff-crew-monitor status          Print the crew once as text (same options as dashboard)
   luff-crew-monitor statusline      Status line command; reads Claude Code's JSON on stdin
@@ -34,7 +35,10 @@ Usage
 Config: ~/.luff-crew/config.json or LUFF_CREW_PORT, LUFF_CREW_LANG, LUFF_CREW_AUTO_OPEN.
 `
 
-function followFrom(values: { project?: string; session?: string }): FollowMode {
+async function followFrom(values: { project?: string; session?: string }): Promise<FollowMode> {
+  // A known session id pins its own transcript, wherever its project folder is.
+  const transcript = values.session ? await findSessionTranscript(values.session) : null
+  if (transcript) return { kind: 'transcript', path: transcript }
   if (values.project || values.session) {
     const cwd = resolve(values.project ?? process.cwd())
     return values.session ? { kind: 'project', cwd, preferSessionId: values.session } : { kind: 'project', cwd }
@@ -110,7 +114,7 @@ async function main(argv: string[]): Promise<number> {
     })
     const cfg = loadConfig()
     if (values.port) cfg.port = Number(values.port) || cfg.port
-    const monitor = new Monitor(followFrom(values), cfg, { alwaysPoll: cmd === 'dashboard' })
+    const monitor = new Monitor(await followFrom(values), cfg, { alwaysPoll: cmd === 'dashboard' })
     if (cmd === 'status') {
       process.stdout.write(renderStatus(await monitor.refresh()) + '\n')
       return 0

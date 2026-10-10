@@ -11,7 +11,7 @@ export interface Config {
   port: number
   /** `auto` follows Claude Code's `language` setting, then the system locale. */
   language: 'auto' | Lang
-  /** Open the dashboard in the browser when a job with a plan starts. */
+  /** Open the dashboard in the browser by itself when a job with a plan starts (off: only on request). */
   autoOpen: boolean
   /** A run with no transcript activity for this long, and no end, is marked stalled. */
   stallMinutes: number
@@ -21,7 +21,7 @@ export interface Config {
   contextWindows?: Record<string, number>
 }
 
-export const DEFAULTS: Config = { port: 7420, language: 'auto', autoOpen: true, stallMinutes: 30 }
+export const DEFAULTS: Config = { port: 7420, language: 'auto', autoOpen: false, stallMinutes: 30 }
 
 export const configPath = (): string => join(appDir(), 'config.json')
 

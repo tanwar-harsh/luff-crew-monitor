@@ -77,6 +77,22 @@ export async function newestSessionAnywhere(): Promise<SessionFile | null> {
   return best
 }
 
+/** A session's transcript by its id, in whichever project folder holds it. */
+export async function findSessionTranscript(sessionId: string): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null
+  let dirs: string[]
+  try {
+    dirs = await readdir(projectsDir())
+  } catch {
+    return null
+  }
+  for (const d of dirs) {
+    const path = join(projectsDir(), d, `${sessionId}.jsonl`)
+    if (existsSync(path)) return path
+  }
+  return null
+}
+
 /** Where a session keeps its subagent transcripts. */
 export const subagentsDir = (projectDir: string, sessionId: string): string => join(projectDir, sessionId, 'subagents')
 

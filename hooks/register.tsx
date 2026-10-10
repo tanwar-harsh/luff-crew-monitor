@@ -9,7 +9,7 @@ import { clip, fmtCost, fmtDuration, fmtTime, fmtTokens, normalize } from '../sr
 import { STRINGS } from '../src/i18n.ts'
 import { contextWindowOf, costOf, modelLabel, tokensOf } from '../src/pricing.ts'
 import type { ProgressInput } from '../src/types.ts'
-import type { CrewFlow, CrewLimitWindow, CrewPanel, CrewRun, CrewTask, CrewUsageBuckets } from '../types'
+import type { CrewFlow, CrewLimitWindow, CrewPanel, CrewRun, CrewTask, CrewTurn, CrewUsageBuckets } from '../types'
 import {
   ACCENT,
   BAD,
@@ -45,6 +45,8 @@ const SEVEN_DAYS = 7 * 24 * HOUR
 
 const flowAtom = atom({ plugin: 'luff-crew-monitor', key: 'flow' } as const, null)
 const runsAtom = atom({ plugin: 'luff-crew-monitor', key: 'runs' } as const, [])
+const turnAtom = atom({ plugin: 'luff-crew-monitor', key: 'turn' } as const, null)
+const webAtom = atom({ plugin: 'luff-crew-monitor', key: 'web' } as const, null)
 const panelAtom = atom({ plugin: 'luff-crew-monitor', key: 'panel' } as const, {
   isCompact: false,
   isFinishedOpen: true,
@@ -193,6 +195,154 @@ async function autoOpen($: EngineInterface, key: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// The main loop's turn: every prompt moves the bar, subagents or not.
+
+/** `mcp__server__ctx_execute` → `ctx_execute`; built-in names stay. */
+const shortTool = (name: string): string => name.split('__').pop() || name
+
+const newTurn = (turnId: string, prompt: string, at: number): CrewTurn => ({
+  turnId,
+  prompt: clip(prompt.replace(/\s+/g, ' ').trim(), 120),
+  status: 'running',
+  startedAt: at,
+  steps: 0,
+  tools: 0,
+  tokens: 0,
+  costUsd: 0,
+})
+
+function turnWord(t: CrewTurn): string {
+  return t.status === 'running' ? s().working : t.status === 'done' ? s().answered : s().stopped
+}
+
+function turnStats(t: CrewTurn, now: number): string {
+  const time = fmtTime((t.endedAt ?? Math.max(now, t.startedAt)) - t.startedAt)
+  const tool = t.status === 'running' && t.lastTool ? ` (${t.lastTool})` : ''
+  return `${t.steps} ${s().steps} · ${t.tools} ${s().tools}${tool} · ${time} · ≈${fmtCost(t.costUsd)}`
+}
+
+/** One segment per model request (the last 24), the one in flight striped. */
+function turnSegments(t: CrewTurn): Array<'done' | 'running'> {
+  if (t.status !== 'running') return Array.from({ length: Math.max(1, Math.min(24, t.steps)) }, () => 'done' as const)
+  return [...Array.from({ length: Math.min(23, t.steps) }, () => 'done' as const), 'running' as const]
+}
+
+/** A block sliding along the track while a turn runs; full once it ends. */
+function pulseBar(t: CrewTurn, now: number, width: number): string {
+  if (t.status !== 'running') return textBar(1, width)
+  const block = Math.min(3, width)
+  const pos = Math.floor((now - t.startedAt) / 1000) % (width - block + 1)
+  return '▱'.repeat(pos) + '▰'.repeat(block) + '▱'.repeat(width - block - pos)
+}
+
+// ---------------------------------------------------------------------------
+// The browser view: optional, started only by /agents-web or the panel's button.
+// It is the package's own CLI dashboard (dist/luff-crew.mjs), following this
+// session's transcript on localhost; it ends with the session or on request.
+
+let stopWeb: (() => void) | null = null
+
+async function findNode($: EngineInterface): Promise<string | null> {
+  const works = async (bin: string): Promise<boolean> => {
+    try {
+      return (await $.process.run([bin, '--version'], { timeoutMs: 5000 })).exitCode === 0
+    } catch {
+      return false
+    }
+  }
+  if (await works('node')) return 'node'
+  const nvm = await $.env.get('NVM_BIN')
+  if (nvm && (await works(`${nvm}/node`))) return `${nvm}/node`
+  // Apps started from the Dock lack the shell's PATH: ask the login shell.
+  try {
+    const shell = (await $.env.get('SHELL')) || '/bin/sh'
+    const { stdout } = await $.process.run([shell, '-ilc', 'command -v node'], { timeoutMs: 8000 })
+    const found = stdout
+      .split('\n')
+      .map(l => l.trim())
+      .reverse()
+      .find(l => l.startsWith('/') && l.endsWith('/node'))
+    if (found && (await works(found))) return found
+  } catch {
+    // No login shell: try the usual places.
+  }
+  for (const bin of ['/opt/homebrew/bin/node', '/usr/local/bin/node', '/usr/bin/node']) if (await works(bin)) return bin
+  return null
+}
+
+async function openUrl($: EngineInterface, url: string): Promise<void> {
+  for (const argv of [['open', url], ['xdg-open', url], ['cmd', '/c', 'start', '""', url]]) {
+    try {
+      if ((await $.process.run(argv, { timeoutMs: 5000 })).exitCode === 0) return
+    } catch {
+      // Not this platform's opener.
+    }
+  }
+}
+
+async function startWebView($: EngineInterface): Promise<string> {
+  const cur = await read($, webAtom)
+  if (cur?.status === 'running' && stopWeb) {
+    await openUrl($, cur.url)
+    return `${s().webAt}: ${cur.url}`
+  }
+  if (cur?.status === 'starting') return s().webStarting
+  await update($, webAtom, () => ({ status: 'starting' as const, url: '', startedAt: Date.now() }))
+
+  const node = await findNode($)
+  if (!node) {
+    await update($, webAtom, () => null)
+    return 'The browser view needs Node.js 18.17 or newer, and none was found on PATH. Install Node.js, then run /agents-web again.'
+  }
+  const [cwd, sessionId] = await Promise.all([$.session.cwd(), $.session.id()])
+  const argv = [node, `${$.plugin.root}/dist/luff-crew.mjs`, 'dashboard', '--project', cwd, ...(sessionId ? ['--session', sessionId] : [])]
+  const child = $.process.spawn({ argv, env: { LUFF_CREW_LANG: lang } })
+
+  let settle: (url: string | null) => void = () => {}
+  const found = new Promise<string | null>(resolve => (settle = resolve))
+  let isStopped = false
+  stopWeb = () => {
+    isStopped = true
+    void child.return(undefined as never).catch(() => {})
+  }
+  void (async () => {
+    let out = ''
+    let errors = ''
+    try {
+      for await (const { stream, text } of child) {
+        if (stream === 'stderr') errors = (errors + text).slice(-2000)
+        out = (out + text).slice(-4000)
+        const m = /dashboard:\s*(https?:\/\/\S+)/i.exec(out)
+        if (m) {
+          settle(m[1]!)
+          await update($, webAtom, () => ({ status: 'running' as const, url: m[1]!, startedAt: Date.now() }))
+          out = ''
+        }
+      }
+    } catch (err) {
+      errors ||= String(err)
+    }
+    settle(null)
+    stopWeb = null
+    await update($, webAtom, () => null).catch(() => {})
+    if (!isStopped && errors.trim()) $.ui.log(`luff-crew: the browser view stopped: ${clip(errors.trim(), 300)}`, { to: 'debug' })
+  })()
+
+  const url = await Promise.race([found, $.clock.sleep(15_000).then(() => null)])
+  if (url) return `${s().webAt}: ${url} (opened in your browser; /agents-web stop ends it)`
+  stopWeb?.()
+  return 'The browser view did not start. Run Claude Code with --debug for the reason, or start it by hand: luff-crew-monitor dashboard'
+}
+
+async function stopWebView($: EngineInterface): Promise<string> {
+  const wasRunning = !!stopWeb
+  stopWeb?.()
+  stopWeb = null
+  await update($, webAtom, () => null)
+  return wasRunning ? 'Browser view stopped.' : 'No browser view is running.'
+}
+
+// ---------------------------------------------------------------------------
 
 export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
@@ -254,6 +404,13 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'agents-info',
       description: 'Show or hide the Luff Crew panel: subagents, plan limits, cost and time',
+      immediate: true,
+    })
+    await $.command.register({
+      name: 'agents-web',
+      description: 'Open the Luff Crew view in your browser (localhost); /agents-web stop ends it',
+      argumentHint: '[stop]',
+      immediate: true,
     })
 
     try {
@@ -271,7 +428,8 @@ export const register: Register = (on, options) => {
         ticks++
         if (ticks % 60 === 0) await loadOthers($).catch(() => {})
         const runs = await read($, runsAtom)
-        if (runs.some(r => r.status === 'running') || ticks % 30 === 0) await update($, nowAtom, () => Date.now())
+        const turn = await read($, turnAtom)
+        if (runs.some(r => r.status === 'running') || turn?.status === 'running' || ticks % 30 === 0) await update($, nowAtom, () => Date.now())
       })()
     })
     return started
@@ -286,6 +444,25 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'agents-info' }, async $ => {
     const isOpen = await togglePane($)
     return { text: isOpen ? 'Luff Crew panel opened.' : 'Luff Crew panel closed.' }
+  })
+
+  on('command.run', { command: 'agents-web' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    return { text: arg === 'stop' || arg === 'off' || arg === 'close' ? await stopWebView($) : await startWebView($) }
+  })
+
+  // Each prompt starts a turn of the main loop: the bar follows it from here.
+  on('turn.start', async ($, e, next) => {
+    try {
+      if (!(e as { agentId?: string }).agentId) {
+        const at = await $.clock.now()
+        await update($, turnAtom, () => newTurn(e.turnId, e.text, at))
+        await update($, nowAtom, () => at)
+      }
+    } catch {
+      // Bookkeeping never holds up a turn.
+    }
+    return next(e)
   })
 
   on('tool.call', { tool: TOOL_PROGRESS }, async ($, e) => {
@@ -354,12 +531,29 @@ export const register: Register = (on, options) => {
   // and a subagent's live model, effort, context, tokens and cost.
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
-    const usage = result.usage
-    if (!usage) return result
-    const model = usage.model || e.model
-    const tokens = tokensOf(usage)
-    const cost = costOf(model, usage)
     const at = await $.clock.now()
+    const usage = result.usage
+    const model = usage?.model || e.model
+    const tokens = usage ? tokensOf(usage) : 0
+    const cost = usage ? costOf(model, usage) : 0
+
+    // The main loop's turn: one more request, the tools it asked for.
+    if (!e.agentId) {
+      const last = result.toolUses.at(-1)?.name
+      await update($, turnAtom, t => {
+        const base = t && t.turnId === e.turnId ? t : newTurn(e.turnId, '', at)
+        return {
+          ...base,
+          status: 'running' as const,
+          steps: base.steps + 1,
+          tools: base.tools + result.toolUses.length,
+          ...(last ? { lastTool: shortTool(last) } : {}),
+          tokens: base.tokens + tokens,
+          costUsd: base.costUsd + cost,
+        }
+      })
+    }
+    if (!usage) return result
 
     const hour = String(Math.floor(at / HOUR))
     const own = await update($, usageAtom, b => {
@@ -415,6 +609,19 @@ export const register: Register = (on, options) => {
         }),
       )
       await update($, nowAtom, () => at)
+    } else {
+      const at = await $.clock.now()
+      const reason = e.reason
+      await update($, turnAtom, t => {
+        if (!t || (t.turnId !== e.turnId && t.status !== 'running')) return t
+        const out: CrewTurn = { ...t, status: reason === 'answer' ? 'done' : 'failed', endedAt: at }
+        if (reason === 'aborted') out.failure = 'stopped'
+        else if (reason !== 'answer') out.failure = 'error'
+        else delete out.failure
+        delete out.lastTool
+        return out
+      })
+      await update($, nowAtom, () => at)
     }
     return next(e)
   })
@@ -440,7 +647,9 @@ export const register: Register = (on, options) => {
     const limits = await read($, limitsAtom)
     const own = await read($, usageAtom)
     const others = await read($, othersAtom)
-    const now = Math.max(await read($, nowAtom), ...all.map(r => r.startedAt), 0)
+    const turn = await read($, turnAtom)
+    const web = await read($, webAtom)
+    const now = Math.max(await read($, nowAtom), ...all.map(r => r.startedAt), turn?.startedAt ?? 0, 0)
 
     const runs = visible(flow, all)
     const running = runs.filter(r => r.status === 'running').reverse()
@@ -469,6 +678,21 @@ export const register: Register = (on, options) => {
         onPress={() => update($, panelAtom, p => ({ ...p, isLimitsOpen: !p.isLimitsOpen }))}
       />
     )
+    const turnHead = turn ? `${turn.status === 'running' ? s().thisPrompt : s().lastPrompt}: ${turnWord(turn)}` : ''
+    const turnLine = turn ? `${turn.prompt ? `“${clip(turn.prompt, 60)}” · ` : ''}${turnStats(turn, now)}` : ''
+    const webButton = (
+      <Button
+        key="web"
+        plain
+        label={web ? (web.status === 'running' ? s().stopWeb : s().webStarting) : s().openWeb}
+        onPress={async () => {
+          const cur = await read($, webAtom)
+          if (cur?.status === 'running') await stopWebView($)
+          else if (!cur) $.ui.toast(await startWebView($))
+        }}
+      />
+    )
+    const webLine = web?.status === 'running' ? `${s().webAt}: ${web.url}` : ''
     const toggleFinished = (
       <Button
         key="finished"
@@ -555,6 +779,16 @@ export const register: Register = (on, options) => {
             <Text dimColor>{`   ${s().time} `}</Text>
             <Text bold>{fmtTime(t.time)}</Text>
           </Text>
+          {turn ? (
+            <Box key="turn" flexDirection="column">
+              <Text key="h" bold>
+                <Text color={statusColor(turn.status, ACCENT)}>{statusGlyph(turn.status)}</Text> {turnHead}
+              </Text>
+              <Text key="d" dimColor wrap="truncate-end">
+                {turnLine}
+              </Text>
+            </Box>
+          ) : null}
           {toggleLimits}
           {panel.isLimitsOpen ? limitRows.map(limitRow) : null}
           {panel.isLimitsOpen && !limits.windows.length ? (
@@ -600,6 +834,12 @@ export const register: Register = (on, options) => {
           <Text key="estimate" dimColor>
             {s().estimate}
           </Text>
+          {webButton}
+          {webLine ? (
+            <Text key="web-url" dimColor wrap="truncate-end">
+              {webLine}
+            </Text>
+          ) : null}
         </Box>
       )
     }
@@ -655,10 +895,18 @@ export const register: Register = (on, options) => {
         <Text dimColor>
           {s().cost} ≈{fmtCost(t.cost)} · {s().tokens} {fmtTokens(t.tokens)} · {s().time} {fmtTime(t.time)}
         </Text>
+        {turn ? (
+          <Text wrap="truncate-end">
+            <Text color={turn.status === 'failed' ? 'red' : turn.status === 'done' ? 'green' : 'magenta'}>{statusGlyph(turn.status)}</Text> {turnHead}
+            <Text dimColor> · {turnLine}</Text>
+          </Text>
+        ) : null}
         <Box flexDirection="row" gap={2} marginTop={1}>
           {toggleLimits}
           {toggleCompact}
+          {webButton}
         </Box>
+        {webLine ? <Text dimColor wrap="truncate-end">{webLine}</Text> : null}
         {panel.isLimitsOpen ? limitRows.map(limitLine) : null}
         {isEmpty ? <Text dimColor>{s().empty}</Text> : null}
         {panel.isCompact ? (
@@ -696,21 +944,90 @@ export const register: Register = (on, options) => {
     const limits = await read($, limitsAtom)
     const runs = visible(flow, all)
     const running = runs.filter(r => r.status === 'running').length
-    const shownFlow = flow && flow.updatedAt > panel.hiddenAt ? flow : null
-    // Quiet until there is a job or a subagent at work.
-    if (!shownFlow && running === 0) return next(e)
+    const turn = await read($, turnAtom)
+    const shownTurn = turn && turn.startedAt > panel.hiddenAt ? turn : null
+    // A finished job gives way to the next prompt.
+    const isFlowOver = !!flow?.finished && !!shownTurn && shownTurn.startedAt > flow.updatedAt
+    const shownFlow = flow && flow.updatedAt > panel.hiddenAt && !isFlowOver ? flow : null
 
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
+    const dismissBar = (
+      <Button key="hide" plain role="dismiss" label="✕" onPress={() => update($, panelAtom, p => ({ ...p, hiddenAt: Date.now() }))} />
+    )
+
+    // No job and no subagent: the bar follows the prompt itself.
+    if (!shownFlow && running === 0) {
+      if (!shownTurn) return next(e)
+      const now = Math.max(await read($, nowAtom), shownTurn.startedAt)
+      const prompt = shownTurn.prompt || s().thisPrompt
+      const word = turnWord(shownTurn)
+      const stats = turnStats(shownTurn, now)
+      const short = limitsShort(limits.windows)
+      const panelButton = <Button key="crew" plain label={runs.length ? `×${runs.length}` : s().appName} onPress={() => void togglePane($)} />
+
+      if (e.surface !== 'terminal' && 'Svg' in ui) {
+        const { Svg } = ui
+        const color = shownTurn.status === 'failed' ? BAD : shownTurn.status === 'done' ? OK : ACCENT
+        const cols = e.props.bodyColumns || 100
+        const reserved = Math.min(28, prompt.length) + word.length + stats.length + short.length + 22
+        const barW = Math.max(60, Math.min(600, (cols - reserved) * 8))
+        return (
+          <Box flexDirection="row" alignItems="center" gap={1}>
+            <Text key="title" bold wrap="truncate-end">
+              <Text color={color}>{statusGlyph(shownTurn.status)}</Text> {clip(prompt, 28)}
+            </Text>
+            <Svg
+              key="segs"
+              source={segmentsSvg(barW, turnSegments(shownTurn), color, shownTurn.status === 'running')}
+              alt={`${word}, ${stats}`}
+              width={barW}
+              height={SEG_H}
+            />
+            <Text key="label" bold color={color}>
+              {word}
+            </Text>
+            <Text key="stats" dimColor wrap="truncate-end">
+              {stats}
+            </Text>
+            {short ? (
+              <Text key="limits" dimColor>
+                {short}
+              </Text>
+            ) : null}
+            {panelButton}
+            {dismissBar}
+          </Box>
+        )
+      }
+
+      const cols = e.props.bodyColumns || 80
+      const promptW = Math.max(8, Math.min(28, Math.floor(cols / 4)))
+      const width = Math.max(6, Math.min(16, cols - promptW - stats.length - 24))
+      const color = shownTurn.status === 'failed' ? 'red' : shownTurn.status === 'done' ? 'green' : 'magenta'
+      return (
+        <Box flexDirection="row" gap={1}>
+          <Text color={color}>{statusGlyph(shownTurn.status)}</Text>
+          <Text bold wrap="truncate-end">
+            {clip(prompt, promptW)}
+          </Text>
+          <Text color={color}>{pulseBar(shownTurn, now, width)}</Text>
+          <Text bold>{word}</Text>
+          <Text dimColor wrap="truncate-end">
+            {stats}
+          </Text>
+          {short ? <Text dimColor>{short}</Text> : null}
+          {panelButton}
+          {dismissBar}
+        </Box>
+      )
+    }
     const crew = runs.length + pending(shownFlow, runs).length
     const title = shownFlow?.title ?? s().appName
     const label = shownFlow ? flowLabel(shownFlow, running) : `${running} ${s().busy}`
     const ratio = shownFlow ? flowRatio(shownFlow) : 0
     const short = limitsShort(limits.windows)
     const crewButton = <Button key="crew" plain label={`×${crew}`} onPress={() => void togglePane($)} />
-    const dismiss = (
-      <Button key="hide" plain role="dismiss" label="✕" onPress={() => update($, panelAtom, p => ({ ...p, hiddenAt: Date.now() }))} />
-    )
 
     if (e.surface !== 'terminal' && 'Svg' in ui) {
       const { Svg } = ui
@@ -740,7 +1057,7 @@ export const register: Register = (on, options) => {
             </Text>
           ) : null}
           {crewButton}
-          {shownFlow ? dismiss : null}
+          {shownFlow ? dismissBar : null}
         </Box>
       )
     }
@@ -759,7 +1076,7 @@ export const register: Register = (on, options) => {
         <Text dimColor>{`${Math.round(ratio * 100)}%`}</Text>
         {short ? <Text dimColor>{short}</Text> : null}
         {crewButton}
-        {shownFlow ? dismiss : null}
+        {shownFlow ? dismissBar : null}
       </Box>
     )
   })

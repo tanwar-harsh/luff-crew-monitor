@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — 2026-10-10
+
+- **The job bar follows every prompt**, not only subagent jobs: while Claude works it shows the prompt, a segment per model request, tool calls (and the one in flight), elapsed time and estimated cost; when the turn ends it reads Done or Stopped until the next prompt or ✕. A finished job gives way to the next prompt. The panel shows the same line for the current or last prompt.
+- **Optional browser view**: `/agents-web` (or the panel's *Open in browser* button) starts the dashboard on `localhost` for this session and opens it once; `/agents-web stop` ends it, and it ends with the session. Nothing opens a browser unless you ask.
+- `/agents-info` and `/agents-web` run immediately, even while Claude is mid-turn.
+- Standalone MCP server: `autoOpen` now defaults to off, so the browser opens only through `open_dashboard`. `dashboard --session <id>` finds that session's transcript in any project folder.
+
 ## 1.2.0 — 2026-10-10
 
 - Panel and job bar read correctly in every theme: all words are the app's own themed text, and only mascots and bars are drawn as SVG, in colors that work on light and dark.

@@ -53,3 +53,47 @@ test('stays out of the way with no job and no subagent', async ($, on) => {
   expect((await band.findAll({ type: 'Text', text: /engine band/ })).length).toBeGreaterThan(0)
   expect((await band.findAll({ type: 'Button' })).length).toBe(0)
 })
+
+test('every prompt moves the bar, with no job and no subagent', async ($, on) => {
+  mock.clock(on, { now: 2_000_000 })
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine band</Text>
+  })
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.step', async function* ($, e) {
+    return {
+      turnId: e.turnId,
+      index: e.index,
+      answer: '',
+      toolUses: [
+        { name: 'Read', input: {} },
+        { name: 'mcp__x__ctx_execute', input: {} },
+      ],
+      stopReason: 'tool_use' as const,
+      usage: { model: 'claude-opus-5-5', input_tokens: 1000, output_tokens: 200, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+    }
+  })
+  on('turn.complete', () => ({ text: '' }))
+
+  await $.turn.start({ text: 'fix the login bug', turnId: 't1' })
+  for await (const _ of $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 1 })) void _
+
+  const bands: Record<string, { findAll: (q: { type?: string; key?: string; text?: string | RegExp }) => Promise<readonly unknown[]> }> = {}
+  for (const surface of SURFACES) {
+    const band = (bands[surface] = await $.ui.mount({ plugin: P, surface, component: 'AbovePrompt', props: { bodyColumns: 120, hasSurvey: false } as never }))
+    expect((await band.findAll({ type: 'Text', text: /fix the login bug/ })).length).toBeGreaterThan(0)
+    expect((await band.findAll({ type: 'Text', text: /Working/ })).length).toBeGreaterThan(0)
+    expect((await band.findAll({ type: 'Text', text: /1 steps · 2 tools \(ctx_execute\)/ })).length).toBeGreaterThan(0)
+    expect((await band.findAll({ type: 'Button', key: 'crew' })).length).toBeGreaterThan(0)
+  }
+
+  // The answer lands: mounted bands redraw as done.
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 5, isAborted: false, reason: 'answer' } as never)
+  for (const surface of SURFACES) expect((await bands[surface]!.findAll({ type: 'Text', text: /Done/ })).length).toBeGreaterThan(0)
+
+  // The panel shows the prompt too, and offers the browser view without opening it.
+  const pane = await $.ui.mount({ plugin: P, surface: 'desktop', component: 'Pane', requestId: 'luff-crew', props: { bodyColumns: 80 } as never })
+  expect((await pane.findAll({ type: 'Text', text: /Last prompt: Done/ })).length).toBeGreaterThan(0)
+  expect((await pane.findAll({ type: 'Button', key: 'web' })).length).toBeGreaterThan(0)
+})

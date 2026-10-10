@@ -6222,6 +6222,20 @@ async function newestSessionAnywhere() {
   }
   return best;
 }
+async function findSessionTranscript(sessionId) {
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null;
+  let dirs;
+  try {
+    dirs = await readdir(projectsDir());
+  } catch {
+    return null;
+  }
+  for (let d of dirs) {
+    let path = join(projectsDir(), d, `${sessionId}.jsonl`);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
 var subagentsDir = (projectDir, sessionId) => join(projectDir, sessionId, "subagents"), appDir = () => process.env.LUFF_CREW_HOME || join(homedir(), ".luff-crew");
 
 // src/pricing.ts
@@ -6283,7 +6297,7 @@ function modelLabel(id) {
 }
 
 // src/config.ts
-var DEFAULTS = { port: 7420, language: "auto", autoOpen: !0, stallMinutes: 30 }, configPath = () => join2(appDir(), "config.json");
+var DEFAULTS = { port: 7420, language: "auto", autoOpen: !1, stallMinutes: 30 }, configPath = () => join2(appDir(), "config.json");
 function readJson(path) {
   try {
     let value = JSON.parse(readFileSync(path, "utf8"));
@@ -18728,6 +18742,17 @@ var STRINGS = {
     lastHours: "last 5 hours",
     lastDays: "last 7 days",
     noPlan: "no plan data",
+    working: "Working",
+    answered: "Done",
+    stopped: "Stopped",
+    steps: "steps",
+    tools: "tools",
+    lastPrompt: "Last prompt",
+    thisPrompt: "This prompt",
+    openWeb: "Open in browser",
+    stopWeb: "Stop browser view",
+    webStarting: "Starting browser view\u2026",
+    webAt: "Browser view",
     limitsHint: "Plan percentages come from Claude Code's status line (Claude.ai plans only). Run `luff-crew-monitor setup --statusline` to record them. Token and cost totals are counted from your local transcripts."
   },
   ru: {
@@ -18769,13 +18794,24 @@ var STRINGS = {
     lastHours: "\u0437\u0430 5 \u0447\u0430\u0441\u043E\u0432",
     lastDays: "\u0437\u0430 7 \u0434\u043D\u0435\u0439",
     noPlan: "\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u043F\u043B\u0430\u043D\u0430",
+    working: "\u0420\u0430\u0431\u043E\u0442\u0430\u0435\u0442",
+    answered: "\u0413\u043E\u0442\u043E\u0432\u043E",
+    stopped: "\u041E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u043E",
+    steps: "\u0448\u0430\u0433\u043E\u0432",
+    tools: "\u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u043E\u0432",
+    lastPrompt: "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u0437\u0430\u043F\u0440\u043E\u0441",
+    thisPrompt: "\u0422\u0435\u043A\u0443\u0449\u0438\u0439 \u0437\u0430\u043F\u0440\u043E\u0441",
+    openWeb: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435",
+    stopWeb: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043D\u044B\u0439 \u0432\u0438\u0434",
+    webStarting: "\u0417\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u043C \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043D\u044B\u0439 \u0432\u0438\u0434\u2026",
+    webAt: "\u0411\u0440\u0430\u0443\u0437\u0435\u0440\u043D\u044B\u0439 \u0432\u0438\u0434",
     limitsHint: "\u041F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u043F\u043B\u0430\u043D\u0430 \u043F\u0440\u0438\u0445\u043E\u0434\u044F\u0442 \u0438\u0437 \u0441\u0442\u0430\u0442\u0443\u0441-\u0441\u0442\u0440\u043E\u043A\u0438 Claude Code (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043B\u0430\u043D\u044B Claude.ai). \u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 `luff-crew-monitor setup --statusline`, \u0447\u0442\u043E\u0431\u044B \u0438\u0445 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C. \u0422\u043E\u043A\u0435\u043D\u044B \u0438 \u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0441\u0447\u0438\u0442\u0430\u044E\u0442\u0441\u044F \u043F\u043E \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u043C \u0442\u0440\u0430\u043D\u0441\u043A\u0440\u0438\u043F\u0442\u0430\u043C."
   }
 }, stringsFor = (lang2) => STRINGS[lang2];
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.2.0";
+var VERSION = "1.3.0";
 
 // src/dashboard/page.ts
 var cached2 = null;
@@ -19906,7 +19942,7 @@ ${r.out}`), 1;
 Next:
   1. Restart Claude Code (or run /mcp) so it picks up the server.
   2. Give Claude a job big enough for a few subagents, then type /agents-info.
-Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen on).`), 0;
+Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen off).`), 0;
 }
 function uninstall(opts) {
   if (hasClaudeCli()) {
@@ -20001,7 +20037,7 @@ Usage
       --dry-run                       Show what would change
   luff-crew-monitor dashboard       Open the dashboard without Claude (follows the latest session)
       --project <dir>                 Follow the sessions of this folder instead
-      --session <id>                  Follow one session of that folder
+      --session <id>                  Follow one session (found in any project folder)
       --port <n>  --no-open
   luff-crew-monitor status          Print the crew once as text (same options as dashboard)
   luff-crew-monitor statusline      Status line command; reads Claude Code's JSON on stdin
@@ -20012,7 +20048,9 @@ Usage
 
 Config: ~/.luff-crew/config.json or LUFF_CREW_PORT, LUFF_CREW_LANG, LUFF_CREW_AUTO_OPEN.
 `;
-function followFrom(values) {
+async function followFrom(values) {
+  let transcript = values.session ? await findSessionTranscript(values.session) : null;
+  if (transcript) return { kind: "transcript", path: transcript };
   if (values.project || values.session) {
     let cwd = resolve2(values.project ?? process.cwd());
     return values.session ? { kind: "project", cwd, preferSessionId: values.session } : { kind: "project", cwd };
@@ -20068,7 +20106,7 @@ async function main(argv) {
       }
     }), cfg = loadConfig();
     values.port && (cfg.port = Number(values.port) || cfg.port);
-    let monitor = new Monitor(followFrom(values), cfg, { alwaysPoll: cmd === "dashboard" });
+    let monitor = new Monitor(await followFrom(values), cfg, { alwaysPoll: cmd === "dashboard" });
     if (cmd === "status")
       return process.stdout.write(renderStatus(await monitor.refresh()) + `
 `), 0;

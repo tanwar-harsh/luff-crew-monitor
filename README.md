@@ -9,13 +9,14 @@ A Claude Code mod: it draws **inside Claude itself** (the desktop app, VS Code a
   <img src="docs/panel-dark.png" alt="The Luff Crew panel and job bar in dark theme" width="48%">
 </p>
 
-- **Job bar**: the job's title, phase, accepted tasks out of planned (one segment per task), percent done and crew size.
+- **Job bar on every prompt**: while Claude works on anything, the bar above the prompt shows what you asked, one segment per model request, tool calls (and the one running now), elapsed time and estimated cost, then Done or Stopped. When Claude splits the work across subagents it becomes the job bar: title, phase, accepted tasks out of planned (one segment per task), percent done and crew size.
 - **Agents panel**: Running, Finished and Planned sections with cost, token and time totals. Each subagent gets a pixel deckhand whose gear shows its effort level: mop, oar, spyglass, lantern or ship's wheel.
 - **Worker steps**: subagents report their own steps (`2/5 · running tests`). A subagent that doesn't report shows its context fill in grey instead.
 - **Works with any subagent**: built-in, custom or plugin agents, foreground or background, retries counted as rounds.
 - **Plan limits**: your 5-hour session and weekly usage, with % used and when each resets, above the agents. Under each meter, the tokens, estimated cost and requests counted from your local transcripts for that window.
 - **`/agents-info`** opens or closes the panel. It also opens on its own when a job with a plan starts, or when the first subagent of a session starts.
-- **Private by design**: everything stays inside your Claude session. No server, no browser, no telemetry.
+- **Optional browser view**: `/agents-web` opens the same crew in your browser on `localhost`, for when you want it on a second screen. It never opens by itself.
+- **Private by design**: everything stays on your machine. No telemetry; the browser view listens on `localhost` only and only while you have it on.
 
 ## Install
 
@@ -39,6 +40,14 @@ claude plugin install luff-crew-monitor@luff-crew
 
 Requires Claude Code 2.1.295 or newer. Run `claude update`; the desktop app updates itself.
 
+### Update
+
+Already installed? Pull the latest version, then restart Claude (or run `/reload-plugins`):
+
+```bash
+claude plugin update luff-crew-monitor@luff-crew
+```
+
 ### Without the mod: MCP server and browser dashboard
 
 For other MCP clients, the same tracker also ships as a standalone MCP server with a browser dashboard on `localhost`:
@@ -55,8 +64,19 @@ Don't use both in Claude Code: the mod already provides the same tools.
 
 ## Use
 
-1. Give Claude a job big enough to split across a few subagents.
-2. Watch the job bar above the prompt, or type `/agents-info` to open the panel.
+1. Send Claude anything. The bar above the prompt follows the turn: steps, tool calls, time and estimated cost.
+2. Give it a job big enough to split across a few subagents and the bar becomes the job bar. Type `/agents-info` to open the panel.
+
+### Browser view (optional)
+
+Inside Claude is the default and needs nothing. If you'd also like the crew in a browser tab:
+
+| Command | What it does |
+| --- | --- |
+| `/agents-web` | Starts the browser view for this session on `localhost` (port 7420, or the next free one) and opens it. Run it again to reopen the tab. |
+| `/agents-web stop` | Stops it. It also stops when the session ends. |
+
+The panel's *Open in browser* button does the same. The browser view needs Node.js 18.17 or newer on your machine; it's the package's own dashboard (`dist/luff-crew.mjs`) following this session's transcript.
 
 You don't need to prompt anything special. The mod adds a short note to Claude's system prompt so it reports progress and asks its subagents for steps. If you want the job bar to be precise, say "plan it as tasks for subagents" in your request.
 
@@ -95,9 +115,11 @@ The mod is a hooks module (`hooks/register.tsx`) that Claude Code loads into eve
 - `agent.spawn`, `turn.step` and `turn.complete` give it each subagent's start, model, effort, token usage and end. Cost comes from token counts and the price table in `src/pricing.ts`.
 - `session.measure` gives the 5-hour and weekly plan windows.
 - `tool.call` answers `progress` and `step`. A subagent's call carries its loop's id, which is how its steps land on the right row.
+- `turn.start`, `turn.step` and `turn.complete` on the main loop drive the per-prompt bar.
 - A `Pane` and an `AbovePrompt` render hook draw the panel and the bar. Words are the app's own themed text. Mascots and bars are small SVGs (desktop, VS Code) or text (terminal).
+- `/agents-web` runs `node dist/luff-crew.mjs dashboard --session <id>` as a child of the session (`$.process.spawn`); the child ends with the session or on `/agents-web stop`.
 
-It needs no server, no browser and no network.
+Inside Claude it needs no server, no browser and no network.
 
 ## Good to know
 
@@ -112,14 +134,14 @@ The package also ships a CLI that reads Claude Code's transcripts directly. It's
 ```
 luff-crew-monitor                 MCP server over stdio
 luff-crew-monitor setup           Register it with `claude mcp add`  [--statusline] [--scope user|project|local] [--force] [--dry-run]
-luff-crew-monitor dashboard       Browser dashboard following the latest session  [--project <dir>] [--session <id>] [--port <n>] [--no-open]
+luff-crew-monitor dashboard       Browser dashboard following the latest session (or one: --session <id>)  [--project <dir>] [--session <id>] [--port <n>] [--no-open]
 luff-crew-monitor status          Print the crew once as text
 luff-crew-monitor statusline      Status line command  [--wrap "<existing command>"] [--no-color]
 luff-crew-monitor doctor          Check the installation
 luff-crew-monitor uninstall       Undo setup
 ```
 
-Its settings live in `~/.luff-crew/config.json`, or in `LUFF_CREW_PORT`, `LUFF_CREW_LANG`, `LUFF_CREW_AUTO_OPEN` and `LUFF_CREW_STALL_MINUTES`.
+Its settings live in `~/.luff-crew/config.json`, or in `LUFF_CREW_PORT`, `LUFF_CREW_LANG`, `LUFF_CREW_AUTO_OPEN` and `LUFF_CREW_STALL_MINUTES`. `autoOpen` is off by default: the MCP server opens the browser only when its `open_dashboard` tool is called. Set it to `true` to have the dashboard open by itself when a job with a plan starts.
 
 ## Development
 
