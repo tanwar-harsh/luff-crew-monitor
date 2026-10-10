@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { applyProgress, cleanTasks, pendingTasks, startsNewFlow, viewFlow, visibleRuns } from '../src/flow.ts'
+import { applyProgress, cleanTasks, doneCount, pendingTasks, startsNewFlow, viewFlow, visibleRuns } from '../src/flow.ts'
 import type { AgentRun } from '../src/types.ts'
 
 const run = (description: string, status: AgentRun['status'], extra: Partial<AgentRun> = {}): AgentRun => ({
@@ -114,5 +114,31 @@ describe('pendingTasks / visibleRuns', () => {
       visibleRuns(f, [old, live, fresh]).map(r => r.id),
       ['live', 'fresh'],
     )
+  })
+})
+
+describe('doneCount', () => {
+  const plan = applyProgress(null, { title: 'J', phase: 'delegate', tasks: [{ title: 'A' }, { title: 'B' }, { title: 'C' }] }, 10)
+
+  it('counts planned tasks as their runs finish, without a progress call', () => {
+    assert.equal(doneCount(plan, []), 0)
+    assert.equal(doneCount(plan, [run('A', 'done'), run('B', 'running')]), 1)
+    assert.equal(doneCount(plan, [run('A', 'done'), run('B', 'done')]), 2)
+    assert.equal(viewFlow(plan, [run('A', 'done'), run('B', 'done')])?.ratio, 2 / 3)
+  })
+
+  it('keeps a reported count the runs have not caught up with, and caps at the total', () => {
+    const reported = applyProgress(plan, { done: 2 }, 11)
+    assert.equal(doneCount(reported, [run('A', 'done')]), 2)
+    assert.equal(doneCount(plan, [run('A', 'done'), run('B', 'done'), run('C', 'done'), run('D', 'done')]), 3)
+  })
+
+  it('does not count a task while a later round of it still runs', () => {
+    assert.equal(doneCount(plan, [run('A', 'done'), run('A', 'running', { id: 'A2', round: 2 })]), 0)
+  })
+
+  it('counts ended runs of an unplanned job', () => {
+    const bare = applyProgress(null, { title: 'J', total: 3 }, 10)
+    assert.equal(doneCount(bare, [run('x', 'done', { endedAt: 50 }), run('y', 'running'), run('z', 'done', { endedAt: 5 })]), 1)
   })
 })

@@ -4,7 +4,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { applyProgress, cleanTasks, startsNewFlow } from '../src/flow.ts'
+import { applyProgress, cleanTasks, doneCount, startsNewFlow } from '../src/flow.ts'
 import { clip, fmtCost, fmtDuration, fmtTime, fmtTokens, normalize } from '../src/format.ts'
 import { STRINGS } from '../src/i18n.ts'
 import { contextWindowOf, costOf, modelLabel, tokensOf } from '../src/pricing.ts'
@@ -85,7 +85,7 @@ const STEP_BRIEF: Record<StepReports, string> = {
 const protocol = (steps: StepReports): string => `## Luff Crew (subagent progress)
 The user watches subagents on the Luff Crew panel. When you split a job across subagents (the Agent tool):
 1. After presenting the plan, call \`${TOOL_PROGRESS}\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
-2. Each time you accept a finished task, call it with the new \`done\` count; switch \`phase\` to "review" while checking results.
+2. The bar counts finished subagents by itself; call it again only to switch \`phase\` to "review" or to re-plan.
 3. When everything is finished, call it once with \`finished: true\`.
 ${STEP_BRIEF[steps]}Skip all of this for work you do yourself without subagents.`
 
@@ -133,21 +133,22 @@ function totals(runs: CrewRun[], now: number) {
   return { cost, tokens, time: runs.length ? end - start : 0 }
 }
 
-function flowLabel(f: CrewFlow, running: number): string {
+function flowLabel(f: CrewFlow, running: number, done = f.done): string {
   const phase = f.phase === 'plan' && running > 0 ? 'delegate' : f.phase
   if (f.finished) return s().phase.close
   if (phase === 'plan' || phase === 'design') return s().phase[phase]
-  const count = f.total ? `${f.done}/${f.total}` : `${running} ${s().busy}`
+  const count = f.total ? `${done}/${f.total}` : `${running} ${s().busy}`
   return `${phase === 'review' ? s().phase.review : s().phase.delegate} ${count}`
 }
 
-const flowRatio = (f: CrewFlow): number => (f.finished ? 1 : f.total ? f.done / f.total : 0)
+const flowRatio = (f: CrewFlow, done = f.done): number => (f.finished ? 1 : f.total ? done / f.total : 0)
 
 function segments(f: CrewFlow, runs: CrewRun[]): Array<'done' | 'running' | 'todo'> {
   const total = f.finished ? Math.max(f.total, 1) : f.total
   const byTitle = new Map(runs.map(r => [normalize(r.description), r.status]))
   const inFlight = f.tasks.length ? f.tasks.filter(t => byTitle.get(normalize(t.title)) === 'running').length : runs.filter(r => r.status === 'running').length
-  return Array.from({ length: total }, (_, i) => (f.finished || i < f.done ? 'done' : i < f.done + inFlight ? 'running' : 'todo'))
+  const done = doneCount(f, runs)
+  return Array.from({ length: total }, (_, i) => (f.finished || i < done ? 'done' : i < done + inFlight ? 'running' : 'todo'))
 }
 
 function sumBuckets(sources: CrewUsageBuckets[], since: number) {
@@ -495,9 +496,10 @@ export const register: Register = (on, options) => {
     const tasks = cleanTasks(input.tasks)
     const next = await update($, flowAtom, p => applyProgress(p, { ...input, ...(tasks ? { tasks } : {}) }, at) as CrewFlow)
     await update($, panelAtom, p => ({ ...p, hiddenAt: 0 }))
-    const running = (await read($, runsAtom)).filter(r => r.status === 'running').length
+    const runs = await read($, runsAtom)
+    const running = runs.filter(r => r.status === 'running').length
     if (next && input.tasks?.length) await autoOpen($, `job:${next.title}`)
-    return { result: `ok: ${next ? flowLabel(next, running) : 'ok'}` }
+    return { result: `ok: ${next ? flowLabel(next, running, doneCount(next, runs)) : 'ok'}` }
   }).catch(() => ({ result: 'ok' }))
 
   // A worker's own steps: the call runs in the worker's loop, so `agentId` names it.
@@ -1094,8 +1096,9 @@ export const register: Register = (on, options) => {
     }
     const crew = runs.length + pending(shownFlow, runs).length
     const title = shownFlow?.title ?? s().appName
-    const label = shownFlow ? flowLabel(shownFlow, running) : `${running} ${s().busy}`
-    const ratio = shownFlow ? flowRatio(shownFlow) : 0
+    const shownDone = shownFlow ? doneCount(shownFlow, runs) : 0
+    const label = shownFlow ? flowLabel(shownFlow, running, shownDone) : `${running} ${s().busy}`
+    const ratio = shownFlow ? flowRatio(shownFlow, shownDone) : 0
     const crewButton = <Button key="crew" plain label={`×${crew}`} onPress={() => void togglePane($)} />
 
     if (e.surface !== 'terminal' && 'Svg' in ui) {

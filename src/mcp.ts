@@ -15,7 +15,7 @@ const INSTRUCTIONS = `Luff Crew tracks subagents (helper Claudes started with th
 
 When you split a job across subagents:
 1. After presenting the plan, call \`progress\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
-2. Each time you accept a finished task, call \`progress\` with the new \`done\` count. Switch \`phase\` to "review" while checking results.
+2. The bar counts finished subagents by itself; call \`progress\` again only to switch \`phase\` to "review" or to re-plan.
 3. When everything is finished, call \`progress\` once with \`finished: true\`.
 
 Tell each subagent, in its prompt, to call \`step\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.

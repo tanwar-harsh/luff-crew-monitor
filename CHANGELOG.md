@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.2 — 2026-10-10
+
+- **Job bar follows the crew**: the done count, bar segments and percent now advance as each subagent finishes, instead of waiting for the main agent's `progress` call. A reported `done` still wins when it is higher.
+- **Cheaper protocol**: the injected instructions no longer ask the main agent to call `progress` after every accepted task, only to plan, switch phase and finish.
+
 ## 1.6.1 — 2026-10-10
 
 Hardening fixes:

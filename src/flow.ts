@@ -80,8 +80,27 @@ export function pendingTasks(flow: Flow | null, runs: AgentRun[]): PlannedView[]
   return flow.tasks.map((t, i) => ({ ...t, n: i + 1 })).filter(t => !started.has(normalize(t.title)))
 }
 
-export function viewFlow(flow: Flow | null, runs: AgentRun[]): FlowView | null {
-  if (!flow) return null
+type RunLike = Pick<AgentRun, 'description' | 'status'> & { endedAt?: number }
+
+/**
+ * Tasks finished so far: the larger of the orchestrator's reported `done` and what the runs show,
+ * so the bar moves as each subagent ends without waiting for a `progress` call.
+ * A planned task counts once it has runs and none is still going; without a plan, every run that ended in this job counts.
+ */
+export function doneCount(flow: Flow, runs: RunLike[]): number {
+  const seen = flow.tasks.length
+    ? flow.tasks.filter(t => {
+        const mine = runs.filter(r => normalize(r.description) === normalize(t.title))
+        return mine.some(r => r.status === 'done') && !mine.some(r => r.status === 'running')
+      }).length
+    : runs.filter(r => r.status === 'done' && (r.endedAt === undefined || r.endedAt >= flow.startedAt)).length
+  const done = Math.max(flow.done, seen)
+  return flow.total ? Math.min(flow.total, done) : done
+}
+
+export function viewFlow(source: Flow | null, runs: AgentRun[]): FlowView | null {
+  if (!source) return null
+  const flow = { ...source, done: doneCount(source, runs) }
   const running = runs.filter(r => r.status === 'running').length
   const ratio = flow.finished ? 1 : flow.total ? flow.done / flow.total : 0
   const shownPhase: Phase = flow.phase === 'plan' && running > 0 ? 'delegate' : flow.phase

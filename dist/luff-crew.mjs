@@ -18830,7 +18830,7 @@ var STRINGS = {
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.1";
+var VERSION = "1.6.2";
 
 // src/dashboard/page.ts
 var cached2 = null;
@@ -19345,9 +19345,16 @@ function pendingTasks(flow, runs) {
   let started = new Set(runs.map((r) => normalize(r.description)));
   return flow.tasks.map((t, i) => ({ ...t, n: i + 1 })).filter((t) => !started.has(normalize(t.title)));
 }
-function viewFlow(flow, runs) {
-  if (!flow) return null;
-  let running = runs.filter((r) => r.status === "running").length, ratio = flow.finished ? 1 : flow.total ? flow.done / flow.total : 0, shownPhase = flow.phase === "plan" && running > 0 ? "delegate" : flow.phase, segments = [], total = flow.finished ? Math.max(flow.total, 1) : flow.total, byTitle = new Map(runs.map((r) => [normalize(r.description), r])), inFlight = flow.tasks.length ? flow.tasks.filter((t) => byTitle.get(normalize(t.title))?.status === "running").length : running;
+function doneCount(flow, runs) {
+  let seen = flow.tasks.length ? flow.tasks.filter((t) => {
+    let mine = runs.filter((r) => normalize(r.description) === normalize(t.title));
+    return mine.some((r) => r.status === "done") && !mine.some((r) => r.status === "running");
+  }).length : runs.filter((r) => r.status === "done" && (r.endedAt === void 0 || r.endedAt >= flow.startedAt)).length, done = Math.max(flow.done, seen);
+  return flow.total ? Math.min(flow.total, done) : done;
+}
+function viewFlow(source, runs) {
+  if (!source) return null;
+  let flow = { ...source, done: doneCount(source, runs) }, running = runs.filter((r) => r.status === "running").length, ratio = flow.finished ? 1 : flow.total ? flow.done / flow.total : 0, shownPhase = flow.phase === "plan" && running > 0 ? "delegate" : flow.phase, segments = [], total = flow.finished ? Math.max(flow.total, 1) : flow.total, byTitle = new Map(runs.map((r) => [normalize(r.description), r])), inFlight = flow.tasks.length ? flow.tasks.filter((t) => byTitle.get(normalize(t.title))?.status === "running").length : running;
   for (let i = 0; i < total; i++)
     flow.finished || i < flow.done ? segments.push("done") : i < flow.done + inFlight ? segments.push("running") : segments.push("todo");
   return { ...flow, ratio, running, shownPhase, segments };
@@ -19818,7 +19825,7 @@ function renderStatusline(snap, opts) {
 }
 
 // src/mcp.ts
-var SERVER_NAME = "luff-crew", INSTRUCTIONS = 'Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.\n\nWhen you split a job across subagents:\n1. After presenting the plan, call `progress` with a short title, the tasks (each title EXACTLY equal to the Agent `description` you will use) and phase "delegate".\n2. Each time you accept a finished task, call `progress` with the new `done` count. Switch `phase` to "review" while checking results.\n3. When everything is finished, call `progress` once with `finished: true`.\n\nTell each subagent, in its prompt, to call `step` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.\n\nUse `crew_status` to read the crew as text and `open_dashboard` when the user asks to see the agents panel.', taskSchema = object2({
+var SERVER_NAME = "luff-crew", INSTRUCTIONS = 'Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.\n\nWhen you split a job across subagents:\n1. After presenting the plan, call `progress` with a short title, the tasks (each title EXACTLY equal to the Agent `description` you will use) and phase "delegate".\n2. The bar counts finished subagents by itself; call `progress` again only to switch `phase` to "review" or to re-plan.\n3. When everything is finished, call `progress` once with `finished: true`.\n\nTell each subagent, in its prompt, to call `step` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.\n\nUse `crew_status` to read the crew as text and `open_dashboard` when the user asks to see the agents panel.', taskSchema = object2({
   title: string2().min(1).describe("A few words; reuse it verbatim as the Agent tool description."),
   agent: string2().optional().describe('Subagent type it will run as, e.g. "general-purpose" or "Explore".'),
   model: string2().optional().describe('Model it is expected to run on, e.g. "opus", "sonnet", "haiku".'),
