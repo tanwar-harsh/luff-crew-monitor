@@ -28,7 +28,11 @@ test('tracks a job, its subagents and their steps, and draws them in the pane an
     expect((await pane.findAll({ type: 'Text', text: /JSDoc \+ greet test/ })).length).toBeGreaterThan(0)
     expect((await pane.findAll({ type: 'Text', text: /Running · 1/ })).length).toBeGreaterThan(0)
     expect((await pane.findAll({ type: 'Text', text: /Planned · 1/ })).length).toBeGreaterThan(0)
-    if (surface === 'terminal') expect((await pane.findAll({ type: 'Text', text: /1\/3 · reading files/ })).length).toBeGreaterThan(0)
+    if (surface === 'terminal') {
+      expect((await pane.findAll({ type: 'Text', text: /1\/3 · reading files/ })).length).toBeGreaterThan(0)
+      // Each row carries its half-block mascot.
+      expect((await pane.findAll({ type: 'Text', text: /█/ })).length).toBeGreaterThan(0)
+    }
 
     const band = await $.ui.mount({ plugin: P, surface, component: 'AbovePrompt', props: { bodyColumns: 100, hasSurvey: false } as never })
     expect((await band.findAll({ type: 'Button', key: 'crew' })).length).toBeGreaterThan(0)

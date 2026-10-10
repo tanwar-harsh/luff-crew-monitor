@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0 — 2026-10-10
+
+- **A crew, not clones**: every subagent gets its own mascot — body color, hat (bandana, sailor cap, tricorne, beanie, captain's hat, headphones, antennae, spiky hair, bow), eyes, mouth and an extra — kept from planned to running to done. What it holds still tells its effort. Ten agents of one type now look like ten different crew members.
+- **Mascots in the terminal**: the terminal panel draws the same crew in colored half blocks on a 13×8 pixel grid, four lines tall, with two-pixel eyes, readable hats and the held gear in hand; legs walk and gear moves while an agent runs; narrow panes fall back to text.
+
 ## 1.4.1 — 2026-10-10
 
 - Limit rings slightly larger and bolder so they read at a glance.

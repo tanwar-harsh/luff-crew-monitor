@@ -14,10 +14,13 @@ import {
   ACCENT,
   BAD,
   barSvg,
+  crewSlots,
   ctxPercent,
   MASCOT_H,
   MASCOT_W,
+  mascotCells,
   mascotSvg,
+  TERM_MASCOT_W,
   OK,
   progressOf,
   runMeta,
@@ -657,6 +660,10 @@ export const register: Register = (on, options) => {
     const running = runs.filter(r => r.status === 'running').reverse()
     const finished = runs.filter(r => r.status !== 'running').reverse()
     const planned = pending(flow, runs)
+    // Every crew member keeps one look: planned tasks by title, other runs by id.
+    const crewSlot = crewSlots(flow?.title ?? '', [...(flow?.tasks ?? []).map(t => normalize(t.title)), ...runs.map(r => normalize(r.description) || r.id)])
+    const slotOf = (title: string) => crewSlot(normalize(title))
+    const runSlot = (r: CrewRun) => crewSlot(normalize(r.description) || r.id)
     const t = totals(runs, now)
     const title = flow && !flow.finished ? flow.title : ''
     const isEmpty = !runs.length && !planned.length
@@ -709,9 +716,9 @@ export const register: Register = (on, options) => {
       const W = Math.max(260, Math.min(900, (e.props.bodyColumns || 48) * 8 - 8))
       const barW = Math.max(120, W - MASCOT_W - 34)
       const icons = [
-        ...running.map(r => ({ type: r.type, effort: r.effort, running: true, dim: false })),
-        ...finished.map(r => ({ type: r.type, effort: r.effort, running: false, dim: false })),
-        ...planned.map(p => ({ type: p.agent ?? 'planned', effort: p.effort, running: false, dim: true })),
+        ...running.map(r => ({ slot: runSlot(r), effort: r.effort, running: true, dim: false })),
+        ...finished.map(r => ({ slot: runSlot(r), effort: r.effort, running: false, dim: false })),
+        ...planned.map(p => ({ slot: slotOf(p.title), effort: p.effort, running: false, dim: true })),
       ]
       // Words are engine Text (themed by the app); pictures are theme-neutral SVG.
       const runRow = (r: CrewRun, prefix: string) => {
@@ -720,7 +727,7 @@ export const register: Register = (on, options) => {
         const steps = stepText(r)
         return (
           <Box key={`${prefix}-${r.id}`} flexDirection="row" gap={1} alignItems="center">
-            <Svg key="m" source={mascotSvg(r.type, r.effort, { running: r.status === 'running', dim: r.status === 'failed' })} alt={r.type} width={MASCOT_W} height={MASCOT_H} />
+            <Svg key="m" source={mascotSvg(runSlot(r), r.effort, { running: r.status === 'running', dim: r.status === 'failed' })} alt={r.type} width={MASCOT_W} height={MASCOT_H} />
             <Box key="body" flexDirection="column" flexGrow={1}>
               <Text key="d" bold wrap="truncate-end">
                 <Text color={statusColor(r.status, color)}>{statusGlyph(r.status)}</Text> {r.description || r.type}
@@ -821,7 +828,7 @@ export const register: Register = (on, options) => {
           {!panel.isCompact
             ? planned.map(p => (
                 <Box key={`plan-${p.n}`} flexDirection="row" gap={1} alignItems="center">
-                  <Svg key="m" source={mascotSvg(p.agent ?? 'planned', p.effort, { dim: true })} alt="planned" width={MASCOT_W} height={MASCOT_H} />
+                  <Svg key="m" source={mascotSvg(slotOf(p.title), p.effort, { dim: true })} alt="planned" width={MASCOT_W} height={MASCOT_H} />
                   <Box key="body" flexDirection="column" flexGrow={1}>
                     <Text key="t" dimColor bold wrap="truncate-end">
                       ◷ {p.n}. {p.title}
@@ -849,29 +856,48 @@ export const register: Register = (on, options) => {
     // Terminal: the same panel in text.
     const cols = Math.max(30, e.props.bodyColumns || 60)
     const barW = Math.max(8, Math.min(24, cols - 40))
+    // The half-block mascot at a row's left edge, dropped when the pane is too narrow.
+    const hasMascot = cols >= 48
+    const termMascot = (slot: number, effort: string | undefined, opts: { running?: boolean; dim?: boolean }) => (
+      <Box key="m" flexDirection="column" width={TERM_MASCOT_W} flexShrink={0}>
+        {mascotCells(slot, effort, opts.running ? Math.floor(now / 1000) : 0).map((cells, i) => (
+          <Text key={`l${i}`} dimColor={opts.dim}>
+            {cells.map((c, k) => (
+              <Text key={`c${k}`} color={c.fg} backgroundColor={c.bg}>
+                {c.ch}
+              </Text>
+            ))}
+          </Text>
+        ))}
+      </Box>
+    )
     const row = (r: CrewRun) => {
       const progress = progressOf(r)
       const color = typeColor(r.type)
       const steps = stepText(r)
+      const indent = hasMascot ? '' : '  '
       return (
-        <Box key={`row-${r.id}`} flexDirection="column" marginBottom={1}>
-          <Text wrap="truncate-end">
-            <Text color={r.status === 'failed' ? 'red' : r.status === 'done' ? 'green' : color}>{r.status === 'running' ? '●' : r.status === 'done' ? '✓' : '✗'}</Text>{' '}
-            <Text bold>{r.description || r.type}</Text>
-          </Text>
-          <Text dimColor wrap="truncate-end">
-            {'  '}
-            {r.type} · {runMeta(r, words)}
-          </Text>
-          <Text wrap="truncate-end">
-            {'  '}
-            {progress === null ? <Text dimColor>{textBar(ctxPercent(r) / 100, barW)}</Text> : <Text color={color}>{textBar(progress, barW)}</Text>}
-            <Text dimColor>
-              {' '}
-              {steps ? steps + ' · ' : ''}
-              {runStats(r, now)}
+        <Box key={`row-${r.id}`} flexDirection="row" gap={1} marginBottom={1}>
+          {hasMascot ? termMascot(runSlot(r), r.effort, { running: r.status === 'running', dim: r.status === 'failed' }) : null}
+          <Box key="body" flexDirection="column" flexGrow={1}>
+            <Text wrap="truncate-end">
+              <Text color={r.status === 'failed' ? 'red' : r.status === 'done' ? 'green' : color}>{r.status === 'running' ? '●' : r.status === 'done' ? '✓' : '✗'}</Text>{' '}
+              <Text bold>{r.description || r.type}</Text>
             </Text>
-          </Text>
+            <Text dimColor wrap="truncate-end">
+              {indent}
+              {r.type} · {runMeta(r, words)}
+            </Text>
+            <Text wrap="truncate-end">
+              {indent}
+              {progress === null ? <Text dimColor>{textBar(ctxPercent(r) / 100, barW)}</Text> : <Text color={color}>{textBar(progress, barW)}</Text>}
+              <Text dimColor>
+                {' '}
+                {steps ? steps + ' · ' : ''}
+                {runStats(r, now)}
+              </Text>
+            </Text>
+          </Box>
         </Box>
       )
     }
@@ -923,12 +949,26 @@ export const register: Register = (on, options) => {
             {finished.length > 0 ? toggleFinished : null}
             {panel.isFinishedOpen ? finished.map(row) : null}
             {planned.length > 0 ? <Text dimColor>{`${s().planned} · ${planned.length}`}</Text> : null}
-            {planned.map(p => (
-              <Text key={`plan-${p.n}`} dimColor wrap="truncate-end">
-                ◷ {p.n}. {p.title}
-                {p.after.length ? ` · ${s().after} ${p.after.join(', ')}` : ''}
-              </Text>
-            ))}
+            {planned.map(p =>
+              hasMascot ? (
+                <Box key={`plan-${p.n}`} flexDirection="row" gap={1} marginBottom={1}>
+                  {termMascot(slotOf(p.title), p.effort, { dim: true })}
+                  <Box key="body" flexDirection="column" flexGrow={1}>
+                    <Text key="t" dimColor bold wrap="truncate-end">
+                      ◷ {p.n}. {p.title}
+                    </Text>
+                    <Text key="m" dimColor wrap="truncate-end">
+                      {[p.agent, p.model ? modelLabel(p.model) : '', p.effort, p.after.length ? `${s().after} ${p.after.join(', ')}` : ''].filter(Boolean).join(' · ') || ' '}
+                    </Text>
+                  </Box>
+                </Box>
+              ) : (
+                <Text key={`plan-${p.n}`} dimColor wrap="truncate-end">
+                  ◷ {p.n}. {p.title}
+                  {p.after.length ? ` · ${s().after} ${p.after.join(', ')}` : ''}
+                </Text>
+              ),
+            )}
           </Box>
         )}
       </Box>
