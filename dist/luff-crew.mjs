@@ -192,9 +192,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; bo
 .section-h button:hover { color: var(--text); }
 .empty { color: var(--muted); padding: 22px 4px 8px; text-align: center; }
 
-.row { display: grid; grid-template-columns: 44px 1fr 16px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 62px 1fr 16px; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .row:last-child { border-bottom: 0; }
-.row .mascot { width: 44px; height: 40px; }
+.row .mascot { width: 62px; height: 56px; }
 .row .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .meta { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .meta .type { font-weight: 600; }
@@ -211,7 +211,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; bo
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 .compact { display: flex; align-items: center; gap: 4px; padding: 8px 0 2px; flex-wrap: wrap; }
-.compact .mini { width: 34px; height: 31px; position: relative; }
+.compact .mini { width: 48px; height: 43px; position: relative; }
 .compact .mini.dim { opacity: 0.4; }
 .compact .more { color: var(--muted); font-size: 13px; margin-left: 4px; }
 
@@ -386,7 +386,7 @@ footer code { font-size: 11.5px; }
       el.dataset.sig = sig
       el.className = \`row \${a.status}\`
       el.innerHTML = runRowHtml(a)
-      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 44, 37)
+      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 62, 52)
       el.querySelector('[data-k=status]').innerHTML = statusHtml(a.status, color)
     }
     el.querySelector('[data-k=name]').textContent = a.description || a.type
@@ -408,7 +408,7 @@ footer code { font-size: 11.5px; }
       .map(esc)
       .join(' \xB7 ')
     return \`
-      <div class="mascot" style="opacity:.4">\${mascotSvg(p.mascot, 44, 37)}</div>
+      <div class="mascot" style="opacity:.4">\${mascotSvg(p.mascot, 62, 52)}</div>
       <div style="min-width:0">
         <div class="name">\${p.n}. \${esc(p.title)}</div>
         <div class="meta">\${meta || '&nbsp;'}</div>
@@ -486,14 +486,14 @@ footer code { font-size: 11.5px; }
         ...finished.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
         ...planned.map(p => ({ k: 'p' + p.n, mascot: p.mascot, dim: true })),
       ]
-      const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 38) - 1)
+      const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 52) - 1)
       const shown = icons.slice(0, max)
       // Rebuild only when the strip changes, so walking mascots keep their stride.
       const sig = JSON.stringify([shown, icons.length])
       if ($('#compact').dataset.sig === sig) return
       $('#compact').dataset.sig = sig
       $('#compact').innerHTML =
-        shown.map(i => \`<span class="mini\${i.dim ? ' dim' : ''}" title="">\${mascotSvg(i.mascot, 34, 29)}</span>\`).join('') +
+        shown.map(i => \`<span class="mini\${i.dim ? ' dim' : ''}" title="">\${mascotSvg(i.mascot, 48, 41)}</span>\`).join('') +
         (icons.length > shown.length ? \`<span class="more">+\${icons.length - shown.length}</span>\` : '')
       return
     }
@@ -18892,7 +18892,7 @@ var STRINGS = {
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.4";
+var VERSION = "1.6.5";
 
 // src/dashboard/page.ts
 var cached2 = null;

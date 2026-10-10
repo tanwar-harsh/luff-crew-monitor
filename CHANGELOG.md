@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.5 — 2026-10-11
+
+- Browser view mascots 40% larger (44×37 to 62×52 in rows, 34×29 to 48×41 in the compact strip). The panel and terminal mascots are unchanged.
+
 ## 1.6.4 — 2026-10-11
 
 - **`stepReports` for the standalone MCP server too**: set it in `~/.luff-crew/config.json` or `LUFF_CREW_STEP_REPORTS` (`off`, `light` — the default — or `full`). Its instructions brief subagents to match, and with `off` the `step` tool isn't offered.

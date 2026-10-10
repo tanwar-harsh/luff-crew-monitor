@@ -136,7 +136,7 @@
       el.dataset.sig = sig
       el.className = `row ${a.status}`
       el.innerHTML = runRowHtml(a)
-      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 44, 37)
+      el.querySelector('[data-k=mascot]').innerHTML = mascotSvg(a.mascot, 62, 52)
       el.querySelector('[data-k=status]').innerHTML = statusHtml(a.status, color)
     }
     el.querySelector('[data-k=name]').textContent = a.description || a.type
@@ -158,7 +158,7 @@
       .map(esc)
       .join(' · ')
     return `
-      <div class="mascot" style="opacity:.4">${mascotSvg(p.mascot, 44, 37)}</div>
+      <div class="mascot" style="opacity:.4">${mascotSvg(p.mascot, 62, 52)}</div>
       <div style="min-width:0">
         <div class="name">${p.n}. ${esc(p.title)}</div>
         <div class="meta">${meta || '&nbsp;'}</div>
@@ -236,14 +236,14 @@
         ...finished.map(a => ({ k: a.id, mascot: a.mascot, dim: false })),
         ...planned.map(p => ({ k: 'p' + p.n, mascot: p.mascot, dim: true })),
       ]
-      const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 38) - 1)
+      const max = Math.max(1, Math.floor(($('#compact').clientWidth || 600) / 52) - 1)
       const shown = icons.slice(0, max)
       // Rebuild only when the strip changes, so walking mascots keep their stride.
       const sig = JSON.stringify([shown, icons.length])
       if ($('#compact').dataset.sig === sig) return
       $('#compact').dataset.sig = sig
       $('#compact').innerHTML =
-        shown.map(i => `<span class="mini${i.dim ? ' dim' : ''}" title="">${mascotSvg(i.mascot, 34, 29)}</span>`).join('') +
+        shown.map(i => `<span class="mini${i.dim ? ' dim' : ''}" title="">${mascotSvg(i.mascot, 48, 41)}</span>`).join('') +
         (icons.length > shown.length ? `<span class="more">+${icons.length - shown.length}</span>` : '')
       return
     }
