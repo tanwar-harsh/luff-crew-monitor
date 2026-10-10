@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0 — 2026-10-10
+
+- **`stepReports` option** (`off` | `light` | `full`) sets how often subagents report their steps. Each report costs the subagent one more model request, the mod's main token cost. `light`, the new default, asks for two (start and halfway) instead of one per step; `off` drops step reports and the `step` tool entirely. Only the panel uses them: the main agent still gets each subagent's answer as before.
+
 ## 1.5.2 — 2026-10-10
 
 - Terminal mascots about 40% smaller: an 8×6 pixel crew member, three lines tall like the row beside it and eight columns wide, with the same hats, eyes, mouths and gear. Panes from 40 columns show them.

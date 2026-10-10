@@ -114,3 +114,19 @@ test('every prompt moves the bar, with no job and no subagent', async ($, on) =>
   expect((await pane.findAll({ type: 'Text', text: /Last prompt: Done/ })).length).toBeGreaterThan(0)
   expect((await pane.findAll({ type: 'Button', key: 'web' })).length).toBeGreaterThan(0)
 })
+
+const COMPOSE = { model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] } as const
+
+test('step reports follow the stepReports option', async ($, on) => {
+  on('prompt.compose', () => ({ sections: [] }))
+  const out = JSON.stringify(await $.prompt.compose(COMPOSE))
+  expect(out).toContain('at most twice')
+  expect(out).toContain('__step')
+})
+
+test('step reports off: no step tool, no step brief', { options: { stepReports: 'off' } }, async ($, on) => {
+  on('prompt.compose', () => ({ sections: [] }))
+  const out = JSON.stringify(await $.prompt.compose(COMPOSE))
+  expect(out).toContain('Do not ask subagents to report steps')
+  expect(out.includes('__step')).toBe(false)
+})

@@ -103,10 +103,18 @@ Planned tasks match runs by title, so each task's `title` should equal the Agent
 
 ## Configure
 
-The only option is the panel language: `auto` (the default) follows Claude Code's `language` setting, then your locale. `en` and `ru` are available. Set it with `/plugin configure luff-crew-monitor@luff-crew`, or in `~/.claude/settings.json`:
+Two options, set with `/plugin configure luff-crew-monitor@luff-crew` or in `~/.claude/settings.json`:
+
+- `language`: `auto` (the default) follows Claude Code's `language` setting, then your locale. `en` and `ru` are available.
+- `stepReports`: how often subagents report their own steps. Each report is one more model request in the subagent, so this is the mod's main cost.
+  - `light` (the default): twice per subagent, at the start and about halfway.
+  - `full`: after every step, for the most detailed rows.
+  - `off`: never; the `step` tool is not even registered. Rows still show running/done, model, context, tokens, cost and time, only not "2/4 · reading files".
+
+  Step reports only feed the panel. The main agent learns what a subagent did from the subagent's own answer either way.
 
 ```json
-{ "pluginConfigs": { "luff-crew-monitor@luff-crew": { "options": { "language": "en" } } } }
+{ "pluginConfigs": { "luff-crew-monitor@luff-crew": { "options": { "language": "en", "stepReports": "off" } } } }
 ```
 
 ## How it works

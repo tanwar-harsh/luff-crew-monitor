@@ -71,13 +71,23 @@ const s = () => STRINGS[lang]
 // This session's own key in `$.store`, so concurrent sessions never overwrite each other.
 let storeKey = ''
 
-const PROTOCOL = `## Luff Crew (subagent progress)
+/** How often subagents report their own steps; each report is one more model request. */
+type StepReports = 'off' | 'light' | 'full'
+
+const stepReportsOf = (value: unknown): StepReports => (value === 'off' || value === 'full' ? value : 'light')
+
+const STEP_BRIEF: Record<StepReports, string> = {
+  off: 'Do not ask subagents to report steps; the panel follows them on its own.\n',
+  light: `In each subagent's prompt, ask it to call \`${TOOL_STEP}\` at most twice: right after reading its brief (done: 0, total: its plan in 3-8 steps) and once about halfway, loading it first with ToolSearch (\`select:${TOOL_STEP}\`) if it is deferred.\n`,
+  full: `In each subagent's prompt, ask it to call \`${TOOL_STEP}\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes, loading it first with ToolSearch (\`select:${TOOL_STEP}\`) if it is deferred.\n`,
+}
+
+const protocol = (steps: StepReports): string => `## Luff Crew (subagent progress)
 The user watches subagents on the Luff Crew panel. When you split a job across subagents (the Agent tool):
 1. After presenting the plan, call \`${TOOL_PROGRESS}\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
 2. Each time you accept a finished task, call it with the new \`done\` count; switch \`phase\` to "review" while checking results.
 3. When everything is finished, call it once with \`finished: true\`.
-In each subagent's prompt, ask it to call \`${TOOL_STEP}\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes, loading it first with ToolSearch (\`select:${TOOL_STEP}\`) if it is deferred.
-Skip all of this for work you do yourself without subagents.`
+${STEP_BRIEF[steps]}Skip all of this for work you do yourself without subagents.`
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -350,6 +360,7 @@ async function stopWebView($: EngineInterface): Promise<string> {
 // ---------------------------------------------------------------------------
 
 export const register: Register = (on, options) => {
+  const stepReports = stepReportsOf(options.stepReports)
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     lang = await detectLang($, options.language)
@@ -390,22 +401,25 @@ export const register: Register = (on, options) => {
         },
       },
     })
-    await $.tool.register({
-      name: 'step',
-      isDeferred: false,
-      description:
-        'For subagents: report progress on your own task to the Luff Crew panel. Right after reading your brief, call it with ' +
-        '`total` (your plan in 3-8 steps) and `done: 0`; call it again as each step finishes. Cheap and silent: it only moves your bar.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          done: { type: 'integer', minimum: 0, description: 'Steps finished so far.' },
-          total: { type: 'integer', minimum: 1, description: 'Steps planned; may change.' },
-          note: { type: 'string', description: 'The step in progress, a few words.' },
+    // With step reports off, subagents never call it: leave its schema out of every request.
+    if (stepReports !== 'off') {
+      await $.tool.register({
+        name: 'step',
+        isDeferred: false,
+        description:
+          'For subagents: report progress on your own task to the Luff Crew panel. Right after reading your brief, call it with ' +
+          '`total` (your plan in 3-8 steps) and `done: 0`; call it again only as often as your brief asks. Silent: it only moves your bar.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            done: { type: 'integer', minimum: 0, description: 'Steps finished so far.' },
+            total: { type: 'integer', minimum: 1, description: 'Steps planned; may change.' },
+            note: { type: 'string', description: 'The step in progress, a few words.' },
+          },
+          required: ['done'],
         },
-        required: ['done'],
-      },
-    })
+      })
+    }
     await $.command.register({
       name: 'agents-info',
       description: 'Show or hide the Luff Crew panel: subagents, plan limits, cost and time',
@@ -443,7 +457,7 @@ export const register: Register = (on, options) => {
   // Teach the model the protocol, for the whole session.
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
-    return { sections: [...composed.sections, { id: 'luff-crew-protocol', text: PROTOCOL, scope: 'session' as const }] }
+    return { sections: [...composed.sections, { id: 'luff-crew-protocol', text: protocol(stepReports), scope: 'session' as const }] }
   })
 
   on('command.run', { command: 'agents-info' }, async $ => {
