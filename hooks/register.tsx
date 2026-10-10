@@ -31,6 +31,7 @@ import {
   statusGlyph,
   stepText,
   STRIP_H,
+  STRIP_STEP,
   stripSvg,
   textBar,
   meterColor,
@@ -827,7 +828,7 @@ export const register: Register = (on, options) => {
               {s().empty}
             </Text>
           ) : null}
-          {panel.isCompact && !isEmpty ? <Svg key="strip" source={stripSvg(W, icons)} alt={s().agentsCount(icons.length)} width={Math.min(W, icons.length * 38)} height={STRIP_H} /> : null}
+          {panel.isCompact && !isEmpty ? <Svg key="strip" source={stripSvg(W, icons)} alt={s().agentsCount(icons.length)} width={Math.min(W, icons.length * STRIP_STEP)} height={STRIP_H} /> : null}
           {!panel.isCompact && running.length > 0 ? (
             <Text key="h-running" dimColor>
               {`${s().running} · ${running.length}`}

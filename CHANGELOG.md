@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.6 — 2026-10-11
+
+- **Bigger mascots in the panel and the browser.** Panel rows draw the crew at a crisp 2× (52×46, was 27×24) and the compact strip at 1.8×. The browser view draws them at 88×74 in rows (was 62×52) and 60×51 in the compact strip. Terminal mascots are unchanged. Screenshots refreshed.
+
 ## 1.6.5 — 2026-10-11
 
 - Browser view mascots 40% larger (44×37 to 62×52 in rows, 34×29 to 48×41 in the compact strip). The panel and terminal mascots are unchanged.

@@ -7,6 +7,7 @@ import {
   crewSlots,
   ctxPercent,
   mascotCells,
+  MASCOT_W,
   mascotSvg,
   meterColor,
   progressOf,
@@ -55,7 +56,7 @@ const PLANNED = 'Final review pass'
 const slotOf = crewSlots(JOB, [finished[0]!, running[0]!, running[1]!].map(r => r.description.toLowerCase()).concat(PLANNED.toLowerCase()))
 const slot = (title: string): number => slotOf(title.toLowerCase())
 
-const barW = W - 44 - 34
+const barW = W - MASCOT_W - 34
 const row = (r: CrewRun): string => {
   const color = typeColor(r.type)
   const p = progressOf(r)

@@ -89,12 +89,13 @@ export const stepText = (r: CrewRun): string =>
 export const statusGlyph = (status: string): string => (status === 'running' ? '●' : status === 'done' ? '✓' : status === 'failed' ? '✗' : '◷')
 export const statusColor = (status: string, color: string): string => (status === 'done' ? OK : status === 'failed' ? BAD : status === 'running' ? color : '#8a8a8a')
 
-export const MASCOT_W = 27
-export const MASCOT_H = 24
+// The 26×22 sprite at a whole 2×, so every pixel stays crisp.
+export const MASCOT_W = 52
+export const MASCOT_H = 46
 
 /** One mascot on its own, for a row's left edge. */
 export const mascotSvg = (slot: number, effort: string | undefined, opts: { running?: boolean; dim?: boolean } = {}): string =>
-  svg(MASCOT_W, MASCOT_H, mascot(0, 1, 1, slot, effort, opts))
+  svg(MASCOT_W, MASCOT_H, mascot(0, 2, 2, slot, effort, opts))
 
 export const BAR_H = 6
 
@@ -107,18 +108,19 @@ export function barSvg(W: number, ratio: number | null, color: string, h = BAR_H
 /** Fill color of a usage meter: calm, then amber past 70%, red past 90%. */
 export const meterColor = (pct: number): string => (pct >= 90 ? BAD : pct >= 70 ? WARN : ACCENT)
 
-export const STRIP_H = 32
+export const STRIP_H = 40
+export const STRIP_STEP = 50
 
 /** A row of small mascots for the compact view. */
 export function stripSvg(W: number, icons: Array<{ slot: number; effort?: string | undefined; running: boolean; dim: boolean }>): string {
-  const step = 38
+  const step = STRIP_STEP
   const fit = Math.max(1, Math.floor(W / step))
   return svg(
     Math.min(W, Math.max(step, icons.slice(0, fit).length * step)),
     STRIP_H,
     icons
       .slice(0, fit)
-      .map((ic, i) => mascot(i * step, 0, 1.4, ic.slot, ic.effort, { running: ic.running, dim: ic.dim }))
+      .map((ic, i) => mascot(i * step, 0, 1.8, ic.slot, ic.effort, { running: ic.running, dim: ic.dim }))
       .join(''),
   )
 }

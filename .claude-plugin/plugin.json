@@ -1,6 +1,6 @@
 {
   "name": "luff-crew-monitor",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "description": "Live crew panel inside Claude: every subagent with model, effort, steps, context, estimated cost and time, plus a job bar above the prompt and your 5-hour and weekly plan limits. /agents-info toggles it; /agents-web opens an optional browser view.",
   "author": {
     "name": "Harsh Tanwar",
