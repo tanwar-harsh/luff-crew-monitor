@@ -9,7 +9,7 @@ A Claude Code mod: it draws **inside Claude itself** (the desktop app, VS Code a
   <img src="docs/panel-dark.png" alt="The Luff Crew panel and job bar in dark theme" width="48%">
 </p>
 <p align="center">
-  <img src="docs/panel-terminal.png" alt="The Luff Crew panel in the terminal, each subagent drawn as a half-block pixel mascot" width="60%">
+  <img src="docs/panel-terminal.png" alt="The Luff Crew panel in the terminal, each subagent drawn as a half-block pixel mascot" width="48%">
 </p>
 
 - **Job bar on every prompt**: while Claude works on anything, the bar above the prompt shows what you asked, one segment per model request, tool calls (and the one running now), elapsed time and estimated cost, then Done or Stopped. When Claude splits the work across subagents it becomes the job bar: title, phase, accepted tasks out of planned (one segment per task), percent done and crew size. Your 5-hour and weekly limits sit at its right edge as colored rings.

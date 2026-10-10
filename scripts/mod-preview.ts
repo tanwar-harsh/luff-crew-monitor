@@ -131,14 +131,14 @@ const termRow = (r: CrewRun, frame: number): string => {
 }
 const terminal = `<!doctype html><meta charset="utf-8"><title>Luff Crew terminal panel</title>
 <style>
-body{margin:0;background:#0d0d0c;font:14px/${cellPx.h}px Menlo,'SF Mono',monospace;color:#e6e4dd}
+body{margin:0;background:#141413;font:14px/${cellPx.h}px Menlo,'SF Mono',monospace;color:#e6e4dd}
 .term{width:${W + 40}px;margin:16px auto;background:#161615;border:1px solid #2e2e2c;border-radius:12px;padding:14px 18px;box-sizing:border-box}
 .term div:not(.m):not(.m div):not(.trow):not(.plan){white-space:pre;overflow:hidden;text-overflow:ellipsis}
 .trow>div:last-child,.plan>div:last-child{min-width:0;flex:1}
 .dim{color:#8f8d86}.gap{height:${cellPx.h}px}
 .trow{display:flex;gap:${cellPx.w}px;margin-bottom:${cellPx.h}px}
 .m div{display:flex;height:${cellPx.h}px}.m i{display:block;width:${cellPx.w}px;height:${cellPx.h}px}.m.faded{opacity:.55}
-.plan{display:flex;gap:${cellPx.w}px;margin-bottom:${cellPx.h}px;color:#8f8d86}
+.plan{display:flex;gap:${cellPx.w}px;color:#8f8d86}
 b{font-weight:700}
 </style>
 <div class="term"><b>${JOB}</b>
