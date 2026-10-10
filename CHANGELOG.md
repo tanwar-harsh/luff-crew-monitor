@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-10
+
+- Panel mascots are 40% smaller (44×38 to 27×24), drawn at native scale so every detail is kept.
+
 ## 1.5.0 — 2026-10-10
 
 - **A crew, not clones**: every subagent gets its own mascot — body color, hat (bandana, sailor cap, tricorne, beanie, captain's hat, headphones, antennae, spiky hair, bow), eyes, mouth and an extra — kept from planned to running to done. What it holds still tells its effort. Ten agents of one type now look like ten different crew members.

@@ -264,12 +264,12 @@ export const stepText = (r: CrewRun): string =>
 export const statusGlyph = (status: string): string => (status === 'running' ? '●' : status === 'done' ? '✓' : status === 'failed' ? '✗' : '◷')
 export const statusColor = (status: string, color: string): string => (status === 'done' ? OK : status === 'failed' ? BAD : status === 'running' ? color : '#8a8a8a')
 
-export const MASCOT_W = 44
-export const MASCOT_H = 38
+export const MASCOT_W = 27
+export const MASCOT_H = 24
 
 /** One mascot on its own, for a row's left edge. */
 export const mascotSvg = (slot: number, effort: string | undefined, opts: { running?: boolean; dim?: boolean } = {}): string =>
-  svg(MASCOT_W, MASCOT_H, mascot(0, 2, 1.65, slot, effort, opts))
+  svg(MASCOT_W, MASCOT_H, mascot(0, 1, 1, slot, effort, opts))
 
 export const BAR_H = 6
 
