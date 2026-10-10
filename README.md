@@ -85,6 +85,7 @@ You don't need to prompt anything special. The mod adds a short note to Claude's
 The panel at the top tracks the two Claude.ai plan windows: the **5-hour session** and the **weekly** limit.
 
 - **% used and reset time** come straight from Claude Code (the same figures as its status line), after your first reply in a session. The meters turn amber past 70% and red past 90%.
+- **On the job bar** the same two windows sit at the right edge, beside the crew count, as small rings in the same colors. The terminal shows them as colored text (`◔ 5h 38%`).
 - **Tokens, estimated cost and requests** for each window are counted from every model request the mod sees, across your sessions and their subagents.
 
 Plan percentages exist only for Claude.ai subscriptions (Pro, Max, Team, Enterprise). With an API key, Bedrock or Vertex the meters stay empty and the local totals cover the last 5 hours and 7 days.
@@ -116,7 +117,7 @@ The mod is a hooks module (`hooks/register.tsx`) that Claude Code loads into eve
 - `session.measure` gives the 5-hour and weekly plan windows.
 - `tool.call` answers `progress` and `step`. A subagent's call carries its loop's id, which is how its steps land on the right row.
 - `turn.start`, `turn.step` and `turn.complete` on the main loop drive the per-prompt bar.
-- A `Pane` and an `AbovePrompt` render hook draw the panel and the bar. Words are the app's own themed text. Mascots and bars are small SVGs (desktop, VS Code) or text (terminal).
+- A `Pane` and an `AbovePrompt` render hook draw the panel and the bar. Words are the app's own themed text. Mascots, bars and limit rings are small SVGs (desktop, VS Code) or text (terminal).
 - `/agents-web` runs `node dist/luff-crew.mjs dashboard --session <id>` as a child of the session (`$.process.spawn`); the child ends with the session or on `/agents-web stop`.
 
 Inside Claude it needs no server, no browser and no network.
@@ -163,7 +164,7 @@ claude plugin validate .
 
 - `npm run check` runs the typecheck, the build and the Node tests (`test/*.spec.ts`).
 - `claude plugin test .` runs the mod's own tests (`hooks/*.test.tsx`) against the engine, on the terminal and desktop surfaces.
-- `node scripts/mod-preview.ts light|dark` renders the panel for the screenshots.
+- `node scripts/mod-preview.ts light|dark` renders the panel and job bar as HTML for the screenshots in `docs/`.
 - To work on the mod live, start Claude Code with `claude --plugin-dir .`. Edits reload when a turn ends.
 - The CLI bundle in `dist/` is committed so installs need no build step. Run `npm run build` before committing source changes.
 

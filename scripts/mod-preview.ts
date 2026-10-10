@@ -8,6 +8,7 @@ import {
   mascotSvg,
   meterColor,
   progressOf,
+  ringSvg,
   runMeta,
   runStats,
   segmentsSvg,
@@ -67,7 +68,7 @@ body{margin:0;background:var(--bg);font:13px/1.45 -apple-system,system-ui,sans-s
 .pane{padding:14px 20px;display:flex;flex-direction:column;gap:9px}
 .dim{color:var(--dim)}.split{display:flex;justify-content:space-between}
 .row{display:flex;gap:8px;align-items:center}.row .body{flex:1;display:flex;flex-direction:column;gap:1px}
-svg{display:block}
+svg{display:block;flex-shrink:0}
 .band{width:${W + 40}px;margin:0 auto 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;box-sizing:border-box;display:flex;gap:8px;align-items:center;white-space:nowrap}
 .prompt{width:${W + 40}px;margin:0 auto 16px;border:1px solid var(--line);border-radius:12px;padding:12px 16px;box-sizing:border-box;color:var(--dim);background:var(--card)}
 </style>
@@ -85,7 +86,7 @@ ${finished.map(row).join('')}
 <div class="dim">Planned · 1</div>
 <div class="row">${mascotSvg('Plan', 'max', { dim: true })}<div class="body"><b class="dim">◷ 4. Final review pass</b><div class="dim">Plan · Fable · max · after 1, 2, 3</div></div></div>
 </div></div>
-<div class="band"><b><span style="color:${ACCENT}">●</span> Auth cleanup + tests</b>${segmentsSvg(230, ['done', 'running', 'running', 'todo'], ACCENT, true)}<b style="color:${ACCENT}">Tasks 1/4</b><span class="dim">25%</span><span class="dim">5h 38% · wk 74%</span><span class="dim">×4</span><span class="dim">✕</span></div>
+<div class="band"><b><span style="color:${ACCENT}">●</span> Auth cleanup + tests</b>${segmentsSvg(110, ['done', 'running', 'running', 'todo'], ACCENT, true)}<b style="color:${ACCENT}">Tasks 1/4</b><span class="dim">25%</span><span style="flex:1"></span>${ringSvg(38)}<span class="dim">5h 38%</span>${ringSvg(74)}<span class="dim">wk 74%</span><span class="dim">×4</span><span class="dim">✕</span></div>
 <div class="prompt">Type / for commands</div>`
 
 process.stdout.write(html)

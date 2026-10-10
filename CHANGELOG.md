@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 — 2026-10-10
+
+- Limit rings slightly larger and bolder so they read at a glance.
+- README: screenshots refreshed to show the new job bar; plan-limit and how-it-works sections cover the rings.
+
 ## 1.4.0 — 2026-10-10
 
 - **Plan-limit rings on the job bar**: the 5-hour and weekly limits move to the bar's right edge, beside the crew count, each drawn as a circular meter that turns amber past 70% and red past 90%. The terminal shows the same colors as text.
