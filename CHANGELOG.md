@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 — 2026-10-10
+
+- Drop the MCP-era `/agents-info` command file so the mod's own command answers.
+
 ## 1.1.0 — 2026-10-10
 
 - **Now a Claude Code mod**: the crew panel, the job bar above the prompt and the plan-limits meters draw inside Claude (desktop app, VS Code, terminal) instead of a browser. `/agents-info` toggles the panel. The tools are registered by the mod, and a system-prompt note teaches Claude the protocol.
