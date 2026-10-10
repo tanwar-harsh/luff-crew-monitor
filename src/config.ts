@@ -42,19 +42,40 @@ const num = (v: unknown): number | undefined => {
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined
 }
 
+const port = (v: unknown): number | undefined => {
+  const n = num(v)
+  return n !== undefined && Number.isInteger(n) && n <= 65535 ? n : undefined
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+/** Keeps only entries whose value passes `ok`; undefined when nothing valid is left. */
+function cleanTable<T>(v: unknown, ok: (x: unknown) => x is T): Record<string, T> | undefined {
+  if (!isRecord(v)) return undefined
+  const out: Record<string, T> = {}
+  for (const [k, x] of Object.entries(v)) if (k.trim() !== '' && ok(x)) out[k] = x
+  return Object.keys(out).length ? out : undefined
+}
+
+const isPrice = (x: unknown): x is number[] =>
+  Array.isArray(x) && x.length === 5 && x.every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0)
+const isWindow = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0
+
 const lang = (v: unknown): Config['language'] | undefined => (v === 'en' || v === 'ru' || v === 'auto' ? v : undefined)
 
 /** Defaults, then `~/.luff-crew/config.json`, then `LUFF_CREW_*` environment variables. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const file = readJson(configPath())
   const cfg: Config = {
-    port: num(env.LUFF_CREW_PORT) ?? num(file.port) ?? DEFAULTS.port,
+    port: port(env.LUFF_CREW_PORT) ?? port(file.port) ?? DEFAULTS.port,
     language: lang(env.LUFF_CREW_LANG) ?? lang(file.language) ?? DEFAULTS.language,
     autoOpen: bool(env.LUFF_CREW_AUTO_OPEN) ?? (typeof file.autoOpen === 'boolean' ? file.autoOpen : DEFAULTS.autoOpen),
     stallMinutes: num(env.LUFF_CREW_STALL_MINUTES) ?? num(file.stallMinutes) ?? DEFAULTS.stallMinutes,
   }
-  if (file.prices && typeof file.prices === 'object') cfg.prices = file.prices as Record<string, number[]>
-  if (file.contextWindows && typeof file.contextWindows === 'object') cfg.contextWindows = file.contextWindows as Record<string, number>
+  const prices = cleanTable(file.prices, isPrice)
+  if (prices) cfg.prices = prices
+  const windows = cleanTable(file.contextWindows, isWindow)
+  if (windows) cfg.contextWindows = windows
   setPriceOverrides(cfg.prices)
   setContextWindowOverrides(cfg.contextWindows)
   return cfg

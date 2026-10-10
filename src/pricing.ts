@@ -30,6 +30,7 @@ const RULES: PriceRule[] = [
   { match: /(fable|mythos)-5-1/, price: [10, 12.5, 20, 0.25, 50] },
   { match: /fable|mythos/, price: [10, 12.5, 20, 1, 50] },
   { match: /opus-5-5/, price: [4, 5, 8, 0.2, 20] },
+  { match: /claude-3-opus|3-opus/, price: [15, 18.75, 30, 1.5, 75] },
   { match: /opus-4-1|opus-4(?!-\d)|opus-4-2025/, price: [15, 18.75, 30, 1.5, 75] },
   { match: /opus/, price: [5, 6.25, 10, 0.5, 25] },
   { match: /sonnet-5-5/, price: [2, 2.5, 4, 0.1, 10] },
@@ -40,6 +41,7 @@ const RULES: PriceRule[] = [
     price: [0.1, 0.125, 0.2, 0.01, 0.5],
     long: { threshold: 100_000, price: [0.5, 0.625, 1, 0.05, 2.5] },
   },
+  { match: /claude-3-haiku|3-haiku/, price: [0.25, 0.3, 0.5, 0.03, 1.25] },
   { match: /haiku-3-5|3-5-haiku/, price: [0.8, 1, 1.6, 0.08, 4] },
   { match: /haiku/, price: [1, 1.25, 2, 0.1, 5] },
 ]
@@ -52,7 +54,7 @@ let overrides: Array<{ match: RegExp; price: PriceRow }> = []
 /** Lets `~/.luff-crew/config.json` add or replace prices, keyed by a substring of the model id. */
 export function setPriceOverrides(table: Record<string, number[]> | undefined): void {
   overrides = Object.entries(table ?? {})
-    .filter(([, row]) => Array.isArray(row) && row.length === 5 && row.every(n => typeof n === 'number' && n >= 0))
+    .filter(([key, row]) => key.trim() !== '' && Array.isArray(row) && row.length === 5 && row.every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0))
     .map(([key, row]) => ({ match: new RegExp(escapeRegExp(key.toLowerCase())), price: row as unknown as PriceRow }))
 }
 
@@ -95,7 +97,7 @@ let windowOverrides: Record<string, number> = {}
 
 export function setContextWindowOverrides(table: Record<string, number> | undefined): void {
   windowOverrides = Object.fromEntries(
-    Object.entries(table ?? {}).filter(([, n]) => typeof n === 'number' && n > 0).map(([k, n]) => [k.toLowerCase(), n]),
+    Object.entries(table ?? {}).filter(([k, n]) => k.trim() !== '' && typeof n === 'number' && Number.isFinite(n) && n > 0).map(([k, n]) => [k.toLowerCase(), n]),
   )
 }
 

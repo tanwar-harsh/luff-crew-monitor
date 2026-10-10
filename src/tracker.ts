@@ -91,6 +91,7 @@ interface AgentState {
   tail?: JsonlTail
   meta?: AgentMeta | undefined
   metaChecked: number
+  metaCheckedAt: number
   /** Usage per model request, keyed by message id: streamed blocks repeat one message. */
   requests: Map<string, { model: string; usage: Usage }>
   model: string
@@ -185,16 +186,20 @@ export class CrewTracker {
     const dir = this.projectDir ?? (await findProjectDir(this.follow.cwd))
     if (!dir) return false
     const want = progressKey(input)
+    // The current session already holds the call: it is the right one, keep it.
+    if (this.session && (await containsProgressCall(this.session.path, want))) return false
     const candidates = (await listSessions(dir)).slice(0, 6)
+    const matches: SessionFile[] = []
     for (const s of candidates) {
       if (s.id === this.session?.id) continue
       if (this.now() - s.mtimeMs > 10 * 60_000) continue
-      if (await containsProgressCall(s.path, want)) {
-        this.switchTo(s)
-        return true
-      }
+      if (await containsProgressCall(s.path, want)) matches.push(s)
     }
-    return false
+    // Pin only on an unambiguous match: several sessions with the same call prove nothing.
+    const [only] = matches
+    if (matches.length !== 1 || !only) return false
+    this.switchTo(only)
+    return true
   }
 
   /** Hides the current job's bar in views until another progress call arrives. */
@@ -364,7 +369,7 @@ export class CrewTracker {
   private agentState(id: string): AgentState {
     let a = this.agents.get(id)
     if (!a) {
-      a = { id, metaChecked: 0, requests: new Map(), model: '', lastAt: 0, contextTokens: 0 }
+      a = { id, metaChecked: 0, metaCheckedAt: 0, requests: new Map(), model: '', lastAt: 0, contextTokens: 0 }
       this.agents.set(id, a)
     }
     return a
@@ -385,8 +390,9 @@ export class CrewTracker {
       if (!m?.[1]) continue
       const a = this.agentState(m[1])
       a.tail ??= new JsonlTail(join(dir, name))
-      if (!a.meta && a.metaChecked < 5) {
+      if (!a.meta && a.metaChecked < 300 && this.now() - a.metaCheckedAt >= 1000) {
         a.metaChecked++
+        a.metaCheckedAt = this.now()
         a.meta = await readMeta(join(dir, `agent-${m[1]}.meta.json`))
         if (a.meta) changed = true
       }

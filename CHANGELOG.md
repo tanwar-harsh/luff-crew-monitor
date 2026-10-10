@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.1 — 2026-10-10
+
+Hardening fixes:
+
+- **Config**: ports above 65535 and malformed `prices` / `contextWindows` rows in the config file are ignored instead of trusted.
+- **Plans**: `after` numbers stay pointed at the right task when untitled tasks are dropped; task counts are capped at 100; a progress call that only repeats `finished: true` no longer starts a new job.
+- **Setup**: a `settings.json` that fails to parse is left alone, with a message, instead of being overwritten; re-registering the MCP server clears every scope so it never registers twice; the final message prints the configured port.
+- **Plan limits**: a null `used_percentage` no longer reads as 0%; a failed write cleans up its temp file; a forced usage scan waits for the running one and then scans again, so it sees fresh files.
+- **Status line**: a timed-out command is killed with its children, and cut-off input counts as none.
+- **Text**: token counts near a million read `1.0M`, not `1000k`; clipping never splits an emoji; Russian gets the right plural for "agents"; claude-3-opus and claude-3-haiku have prices.
+
 ## 1.6.0 — 2026-10-10
 
 - **`stepReports` option** (`off` | `light` | `full`) sets how often subagents report their steps. Each report costs the subagent one more model request, the mod's main token cost. `light`, the new default, asks for two (start and halfway) instead of one per step; `off` drops step reports and the `step` tool entirely. Only the panel uses them: the main agent still gets each subagent's answer as before.

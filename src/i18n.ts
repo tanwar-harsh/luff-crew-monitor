@@ -23,6 +23,7 @@ export const STRINGS = {
     background: 'background',
     tokensWord: 'tokens',
     agents: 'agents',
+    agentsCount: (n: number) => `${n} ${n === 1 ? 'agent' : 'agents'}`,
     live: 'live',
     reconnecting: 'reconnecting…',
     dismiss: 'Hide bar',
@@ -76,6 +77,12 @@ export const STRINGS = {
     background: 'в фоне',
     tokensWord: 'токенов',
     agents: 'агентов',
+    agentsCount: (n: number) => {
+      const m10 = n % 10
+      const m100 = n % 100
+      const word = m10 === 1 && m100 !== 11 ? 'агент' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'агента' : 'агентов'
+      return `${n} ${word}`
+    },
     live: 'онлайн',
     reconnecting: 'переподключение…',
     dismiss: 'Скрыть полосу',
@@ -113,4 +120,4 @@ export const STRINGS = {
 
 export type Strings = (typeof STRINGS)[Lang]
 
-export const stringsFor = (lang: Lang): Strings => STRINGS[lang]
+export const stringsFor = (lang: Lang): Strings => STRINGS[lang] ?? STRINGS.en

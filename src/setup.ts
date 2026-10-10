@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { configPath, DEFAULTS, loadConfig } from './config.ts'
+import { configPath, loadConfig } from './config.ts'
 import { fmtDuration } from './format.ts'
 import { readPlanLimits } from './limits.ts'
 import { SERVER_NAME } from './mcp.ts'
@@ -61,11 +61,14 @@ function claude(args: string[]): { ok: boolean; out: string } {
 
 const hasClaudeCli = (): boolean => claude(['--version']).ok
 
-function readSettings(path: string): Record<string, unknown> {
+/** Missing file is `{}`; a file that exists but won't parse is `null`, so callers never overwrite it. */
+function readSettings(path: string): Record<string, unknown> | null {
+  if (!existsSync(path)) return {}
   try {
-    return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
   } catch {
-    return {}
+    return null
   }
 }
 
@@ -79,7 +82,8 @@ export function setup(opts: SetupOptions): number {
     if (exists && !opts.force) {
       log(`✓ MCP server "${opts.name}" is already registered (use --force to replace it).`)
     } else {
-      if (exists && !opts.dryRun) claude(['mcp', 'remove', opts.name, '--scope', opts.scope])
+      // `mcp get` is not scoped, so clear every scope (a miss is harmless) to avoid a duplicate registration.
+      if (exists && !opts.dryRun) for (const scope of new Set([opts.scope, 'local', 'project', 'user'])) claude(['mcp', 'remove', opts.name, '--scope', scope])
       const args = ['mcp', 'add', '--scope', opts.scope, opts.name, '--', ...cmd]
       if (opts.dryRun) log(`would run: claude ${args.map(quote).join(' ')}`)
       else {
@@ -114,9 +118,10 @@ export function setup(opts: SetupOptions): number {
   if (opts.statusline) {
     const path = join(claudeDir(), 'settings.json')
     const settings = readSettings(path)
-    const current = settings.statusLine as { type?: string; command?: string } | undefined
+    const current = settings?.statusLine as { type?: string; command?: string } | undefined
     const self = cmd.map(quote).join(' ')
-    if (isOurStatusline(current?.command)) log('✓ The status line already includes Luff Crew.')
+    if (!settings) log(`! ${path} is not valid JSON: left as is. Fix it, then run setup --statusline again.`)
+    else if (isOurStatusline(current?.command)) log('✓ The status line already includes Luff Crew.')
     else {
       const command = current?.command ? `${self} statusline --wrap ${quote(current.command)}` : `${self} statusline`
       if (opts.dryRun) log(`would set statusLine.command to: ${command}`)
@@ -133,7 +138,7 @@ export function setup(opts: SetupOptions): number {
 Next:
   1. Restart Claude Code (or run /mcp) so it picks up the server.
   2. Give Claude a job big enough for a few subagents, then type /agents-info.
-Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen off).`)
+Settings: ${configPath()} (port ${loadConfig().port}, language auto, autoOpen off).`)
   return 0
 }
 
@@ -149,6 +154,10 @@ export function uninstall(opts: { scope: SetupOptions['scope']; name: string }):
   }
   const path = join(claudeDir(), 'settings.json')
   const settings = readSettings(path)
+  if (!settings) {
+    log(`! ${path} is not valid JSON: left as is.`)
+    return 0
+  }
   const line = settings.statusLine as { command?: string } | undefined
   if (line?.command && isOurStatusline(line.command)) {
     const wrapped = /--wrap\s+('(?:[^']|'\\'')*'|\S+)\s*$/.exec(line.command)?.[1]
@@ -192,7 +201,7 @@ export async function doctor(): Promise<number> {
   } else log(`- No Claude Code sessions for ${process.cwd()} yet (normal before the first run here).`)
 
   const settings = readSettings(join(dir, 'settings.json'))
-  if (isOurStatusline((settings.statusLine as { command?: string } | undefined)?.command)) {
+  if (isOurStatusline((settings?.statusLine as { command?: string } | undefined)?.command)) {
     const limits = readPlanLimits()
     if (limits) ok(`Plan limits (5-hour / weekly) last reported ${fmtDuration(Date.now() - limits.reportedAt)} ago`)
     else ok('Status line records plan limits (none reported yet: Claude.ai plans only, after the first reply)')

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -41,7 +41,7 @@ export interface PlanLimits {
 export const limitsPath = (): string => join(appDir(), 'limits.json')
 
 function planWindow(raw: RawWindow | null | undefined): PlanWindow | undefined {
-  const pct = Number(raw?.used_percentage)
+  const pct = raw?.used_percentage == null ? NaN : Number(raw.used_percentage)
   const resets = Number(raw?.resets_at)
   if (!raw || !Number.isFinite(pct) || !Number.isFinite(resets) || resets <= 0) return undefined
   // Seconds per the status line docs; tolerate milliseconds too.
@@ -75,8 +75,17 @@ export function savePlanLimits(raw: unknown, now = Date.now()): boolean {
     mkdirSync(appDir(), { recursive: true })
     // Write then rename, so a reader never sees half a file.
     const tmp = `${limitsPath()}.${process.pid}.tmp`
-    writeFileSync(tmp, JSON.stringify(next) + '\n')
-    renameSync(tmp, limitsPath())
+    try {
+      writeFileSync(tmp, JSON.stringify(next) + '\n')
+      renameSync(tmp, limitsPath())
+    } catch (e) {
+      try {
+        unlinkSync(tmp)
+      } catch {
+        // Nothing to clean up.
+      }
+      throw e
+    }
     return true
   } catch {
     return false
@@ -129,6 +138,7 @@ export class UsageScanner {
   private requests = new Map<string, Request>()
   private lastScan = 0
   private scanning: Promise<boolean> | null = null
+  private queued: Promise<boolean> | null = null
 
   constructor(opts: { now?: () => number; root?: () => string } = {}) {
     this.now = opts.now ?? Date.now
@@ -138,10 +148,26 @@ export class UsageScanner {
   /** Reads what the transcripts gained. Throttled unless `force`. True when totals changed. */
   poll(force = false): Promise<boolean> {
     if (!force && this.now() - this.lastScan < RESCAN_MS) return Promise.resolve(false)
-    this.scanning ??= this.scan().finally(() => {
-      this.scanning = null
+    if (this.scanning) {
+      if (!force) return this.scanning
+      // A forced poll must see files written after the running scan started: queue one fresh scan behind it.
+      this.queued ??= this.scanning
+        .catch(() => false)
+        .then(() => {
+          this.queued = null
+          return this.start()
+        })
+      return this.queued
+    }
+    return this.start()
+  }
+
+  private start(): Promise<boolean> {
+    const p: Promise<boolean> = this.scan().finally(() => {
+      if (this.scanning === p) this.scanning = null
     })
-    return this.scanning
+    this.scanning = p
+    return p
   }
 
   private async scan(): Promise<boolean> {

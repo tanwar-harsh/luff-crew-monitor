@@ -18,7 +18,8 @@ async function readStdin(timeoutMs: number): Promise<string> {
   return new Promise(resolve => {
     let data = ''
     const done = (): void => resolve(data)
-    const timer = setTimeout(done, timeoutMs)
+    // On timeout the input may be cut off mid-JSON: treat it as no input.
+    const timer = setTimeout(() => resolve(''), timeoutMs)
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', chunk => (data += chunk))
     process.stdin.on('end', () => {
@@ -31,10 +32,17 @@ async function readStdin(timeoutMs: number): Promise<string> {
 /** Runs another status line command with the same input and returns its output. */
 function runWrapped(command: string, input: string): Promise<string> {
   return new Promise(resolve => {
-    const child = spawn(command, { shell: true, stdio: ['pipe', 'pipe', 'ignore'] })
+    // Own process group (POSIX), so a timeout can take down the shell's children too.
+    const group = process.platform !== 'win32'
+    const child = spawn(command, { shell: true, detached: group, stdio: ['pipe', 'pipe', 'ignore'] })
     let out = ''
     const timer = setTimeout(() => {
-      child.kill()
+      try {
+        if (group && child.pid) process.kill(-child.pid, 'SIGKILL')
+        else child.kill()
+      } catch {
+        child.kill()
+      }
       resolve(out)
     }, 4000)
     child.stdout.setEncoding('utf8')

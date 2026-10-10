@@ -3432,10 +3432,10 @@ var require_utils = __commonJS({
         uriTokens.push(host);
       }
       if (typeof component.port == "number" || typeof component.port == "string") {
-        let port = String(component.port);
-        if (!isPort(port))
+        let port2 = String(component.port);
+        if (!isPort(port2))
           throw new TypeError("URI port is malformed.");
-        uriTokens.push(":"), uriTokens.push(port);
+        uriTokens.push(":"), uriTokens.push(port2);
       }
       return uriTokens.length ? uriTokens.join("") : void 0;
     }
@@ -6244,6 +6244,7 @@ var RULES = [
   { match: /(fable|mythos)-5-1/, price: [10, 12.5, 20, 0.25, 50] },
   { match: /fable|mythos/, price: [10, 12.5, 20, 1, 50] },
   { match: /opus-5-5/, price: [4, 5, 8, 0.2, 20] },
+  { match: /claude-3-opus|3-opus/, price: [15, 18.75, 30, 1.5, 75] },
   { match: /opus-4-1|opus-4(?!-\d)|opus-4-2025/, price: [15, 18.75, 30, 1.5, 75] },
   { match: /opus/, price: [5, 6.25, 10, 0.5, 25] },
   { match: /sonnet-5-5/, price: [2, 2.5, 4, 0.1, 10] },
@@ -6254,11 +6255,12 @@ var RULES = [
     price: [0.1, 0.125, 0.2, 0.01, 0.5],
     long: { threshold: 1e5, price: [0.5, 0.625, 1, 0.05, 2.5] }
   },
+  { match: /claude-3-haiku|3-haiku/, price: [0.25, 0.3, 0.5, 0.03, 1.25] },
   { match: /haiku-3-5|3-5-haiku/, price: [0.8, 1, 1.6, 0.08, 4] },
   { match: /haiku/, price: [1, 1.25, 2, 0.1, 5] }
 ], FALLBACK_PRICE = [3, 3.75, 6, 0.3, 15], overrides = [];
 function setPriceOverrides(table) {
-  overrides = Object.entries(table ?? {}).filter(([, row]) => Array.isArray(row) && row.length === 5 && row.every((n) => typeof n == "number" && n >= 0)).map(([key, row]) => ({ match: new RegExp(escapeRegExp(key.toLowerCase())), price: row }));
+  overrides = Object.entries(table ?? {}).filter(([key, row]) => key.trim() !== "" && Array.isArray(row) && row.length === 5 && row.every((n) => typeof n == "number" && Number.isFinite(n) && n >= 0)).map(([key, row]) => ({ match: new RegExp(escapeRegExp(key.toLowerCase())), price: row }));
 }
 var escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), promptTokens = (u) => (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
 function priceOf(model, usage) {
@@ -6274,7 +6276,7 @@ function costOf(model, u) {
 var tokensOf = (u) => promptTokens(u) + (u.output_tokens ?? 0), windowOverrides = {};
 function setContextWindowOverrides(table) {
   windowOverrides = Object.fromEntries(
-    Object.entries(table ?? {}).filter(([, n]) => typeof n == "number" && n > 0).map(([k, n]) => [k.toLowerCase(), n])
+    Object.entries(table ?? {}).filter(([k, n]) => k.trim() !== "" && typeof n == "number" && Number.isFinite(n) && n > 0).map(([k, n]) => [k.toLowerCase(), n])
   );
 }
 function contextWindowOf(model) {
@@ -6309,15 +6311,27 @@ function readJson(path) {
 var bool = (v) => v === void 0 || v === "" ? void 0 : !/^(0|false|no|off)$/i.test(v.trim()), num = (v) => {
   let n = typeof v == "string" ? Number(v) : v;
   return typeof n == "number" && Number.isFinite(n) && n > 0 ? n : void 0;
-}, lang = (v) => v === "en" || v === "ru" || v === "auto" ? v : void 0;
+}, port = (v) => {
+  let n = num(v);
+  return n !== void 0 && Number.isInteger(n) && n <= 65535 ? n : void 0;
+}, isRecord = (v) => !!v && typeof v == "object" && !Array.isArray(v);
+function cleanTable(v, ok) {
+  if (!isRecord(v)) return;
+  let out = {};
+  for (let [k, x] of Object.entries(v)) k.trim() !== "" && ok(x) && (out[k] = x);
+  return Object.keys(out).length ? out : void 0;
+}
+var isPrice = (x) => Array.isArray(x) && x.length === 5 && x.every((n) => typeof n == "number" && Number.isFinite(n) && n >= 0), isWindow = (x) => typeof x == "number" && Number.isFinite(x) && x > 0, lang = (v) => v === "en" || v === "ru" || v === "auto" ? v : void 0;
 function loadConfig(env = process.env) {
   let file = readJson(configPath()), cfg = {
-    port: num(env.LUFF_CREW_PORT) ?? num(file.port) ?? DEFAULTS.port,
+    port: port(env.LUFF_CREW_PORT) ?? port(file.port) ?? DEFAULTS.port,
     language: lang(env.LUFF_CREW_LANG) ?? lang(file.language) ?? DEFAULTS.language,
     autoOpen: bool(env.LUFF_CREW_AUTO_OPEN) ?? (typeof file.autoOpen == "boolean" ? file.autoOpen : DEFAULTS.autoOpen),
     stallMinutes: num(env.LUFF_CREW_STALL_MINUTES) ?? num(file.stallMinutes) ?? DEFAULTS.stallMinutes
-  };
-  return file.prices && typeof file.prices == "object" && (cfg.prices = file.prices), file.contextWindows && typeof file.contextWindows == "object" && (cfg.contextWindows = file.contextWindows), setPriceOverrides(cfg.prices), setContextWindowOverrides(cfg.contextWindows), cfg;
+  }, prices = cleanTable(file.prices, isPrice);
+  prices && (cfg.prices = prices);
+  let windows = cleanTable(file.contextWindows, isWindow);
+  return windows && (cfg.contextWindows = windows), setPriceOverrides(cfg.prices), setContextWindowOverrides(cfg.contextWindows), cfg;
 }
 var isRussian = (v) => typeof v == "string" && /^(ru|russian|рус)/i.test(v.trim());
 function resolveLang(cfg, env = process.env) {
@@ -18723,6 +18737,7 @@ var STRINGS = {
     background: "background",
     tokensWord: "tokens",
     agents: "agents",
+    agentsCount: (n) => `${n} ${n === 1 ? "agent" : "agents"}`,
     live: "live",
     reconnecting: "reconnecting\u2026",
     dismiss: "Hide bar",
@@ -18775,6 +18790,10 @@ var STRINGS = {
     background: "\u0432 \u0444\u043E\u043D\u0435",
     tokensWord: "\u0442\u043E\u043A\u0435\u043D\u043E\u0432",
     agents: "\u0430\u0433\u0435\u043D\u0442\u043E\u0432",
+    agentsCount: (n) => {
+      let m10 = n % 10, m100 = n % 100, word = m10 === 1 && m100 !== 11 ? "\u0430\u0433\u0435\u043D\u0442" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "\u0430\u0433\u0435\u043D\u0442\u0430" : "\u0430\u0433\u0435\u043D\u0442\u043E\u0432";
+      return `${n} ${word}`;
+    },
     live: "\u043E\u043D\u043B\u0430\u0439\u043D",
     reconnecting: "\u043F\u0435\u0440\u0435\u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435\u2026",
     dismiss: "\u0421\u043A\u0440\u044B\u0442\u044C \u043F\u043E\u043B\u043E\u0441\u0443",
@@ -18807,11 +18826,11 @@ var STRINGS = {
     webAt: "\u0411\u0440\u0430\u0443\u0437\u0435\u0440\u043D\u044B\u0439 \u0432\u0438\u0434",
     limitsHint: "\u041F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u043F\u043B\u0430\u043D\u0430 \u043F\u0440\u0438\u0445\u043E\u0434\u044F\u0442 \u0438\u0437 \u0441\u0442\u0430\u0442\u0443\u0441-\u0441\u0442\u0440\u043E\u043A\u0438 Claude Code (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043B\u0430\u043D\u044B Claude.ai). \u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 `luff-crew-monitor setup --statusline`, \u0447\u0442\u043E\u0431\u044B \u0438\u0445 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C. \u0422\u043E\u043A\u0435\u043D\u044B \u0438 \u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0441\u0447\u0438\u0442\u0430\u044E\u0442\u0441\u044F \u043F\u043E \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u043C \u0442\u0440\u0430\u043D\u0441\u043A\u0440\u0438\u043F\u0442\u0430\u043C."
   }
-}, stringsFor = (lang2) => STRINGS[lang2];
+}, stringsFor = (lang2) => STRINGS[lang2] ?? STRINGS.en;
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.0";
+var VERSION = "1.6.1";
 
 // src/dashboard/page.ts
 var cached2 = null;
@@ -18909,9 +18928,9 @@ function renderPage(nonce, lang2) {
 // src/dashboard/server.ts
 var PORT_ATTEMPTS = 20, HEARTBEAT_MS = 15e3;
 async function startDashboard(opts) {
-  let host = opts.host ?? "127.0.0.1", streams = /* @__PURE__ */ new Set(), lastSent = "", port = 0, allowedHost = (req) => {
+  let host = opts.host ?? "127.0.0.1", streams = /* @__PURE__ */ new Set(), lastSent = "", port2 = 0, allowedHost = (req) => {
     let h = (req.headers.host ?? "").toLowerCase();
-    return h === `127.0.0.1:${port}` || h === `localhost:${port}` || h === `[::1]:${port}`;
+    return h === `127.0.0.1:${port2}` || h === `localhost:${port2}` || h === `[::1]:${port2}`;
   }, frame = () => {
     let snap = opts.snapshot();
     return JSON.stringify(snap);
@@ -18961,7 +18980,7 @@ data: ${frame()}
     }
     res.writeHead(404, { ...common, "content-type": "text/plain" }).end("Not found");
   });
-  server.keepAliveTimeout = 5e3, port = await listen(server, host, opts.port);
+  server.keepAliveTimeout = 5e3, port2 = await listen(server, host, opts.port);
   let push = (force = !1) => {
     if (!streams.size) return;
     let json = frame(), key = withoutClock(json);
@@ -18978,8 +18997,8 @@ data: ${json}
 `);
   }, HEARTBEAT_MS);
   return heartbeat.unref(), {
-    url: `http://${host === "127.0.0.1" ? "localhost" : host}:${port}`,
-    port,
+    url: `http://${host === "127.0.0.1" ? "localhost" : host}:${port2}`,
+    port: port2,
     push: () => push(!1),
     clients: () => streams.size,
     close: () => new Promise((resolve3) => {
@@ -19009,7 +19028,7 @@ async function listen(server, host, first) {
 
 // src/limits.ts
 init_define_LUFF_CREW_ASSETS();
-import { mkdirSync, readFileSync as readFileSync3, renameSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync as readFileSync3, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { readdir as readdir2, stat as stat3 } from "node:fs/promises";
 import { join as join3 } from "node:path";
 
@@ -19089,7 +19108,7 @@ function textOf(value, depth = 0) {
 // src/limits.ts
 var FIVE_HOURS_MS = 5 * 36e5, SEVEN_DAYS_MS = 7 * 864e5, limitsPath = () => join3(appDir(), "limits.json");
 function planWindow(raw) {
-  let pct = Number(raw?.used_percentage), resets = Number(raw?.resets_at);
+  let pct = raw?.used_percentage == null ? NaN : Number(raw.used_percentage), resets = Number(raw?.resets_at);
   if (!(!raw || !Number.isFinite(pct) || !Number.isFinite(resets) || resets <= 0))
     return { usedPct: Math.max(0, pct), resetsAt: resets > 1e12 ? resets : resets * 1e3 };
 }
@@ -19107,8 +19126,17 @@ function savePlanLimits(raw, now = Date.now()) {
     if (prev && same(prev.fiveHour, next.fiveHour) && same(prev.sevenDay, next.sevenDay) && now - prev.reportedAt < REWRITE_MS) return !1;
     mkdirSync(appDir(), { recursive: !0 });
     let tmp = `${limitsPath()}.${process.pid}.tmp`;
-    return writeFileSync(tmp, JSON.stringify(next) + `
-`), renameSync(tmp, limitsPath()), !0;
+    try {
+      writeFileSync(tmp, JSON.stringify(next) + `
+`), renameSync(tmp, limitsPath());
+    } catch (e) {
+      try {
+        unlinkSync(tmp);
+      } catch {
+      }
+      throw e;
+    }
+    return !0;
   } catch {
     return !1;
   }
@@ -19139,14 +19167,19 @@ var SESSION_FILE = /\.jsonl$/i, RESCAN_MS = 1e4, UsageScanner = class {
   requests = /* @__PURE__ */ new Map();
   lastScan = 0;
   scanning = null;
+  queued = null;
   constructor(opts = {}) {
     this.now = opts.now ?? Date.now, this.root = opts.root ?? projectsDir;
   }
   /** Reads what the transcripts gained. Throttled unless `force`. True when totals changed. */
   poll(force = !1) {
-    return !force && this.now() - this.lastScan < RESCAN_MS ? Promise.resolve(!1) : (this.scanning ??= this.scan().finally(() => {
-      this.scanning = null;
-    }), this.scanning);
+    return !force && this.now() - this.lastScan < RESCAN_MS ? Promise.resolve(!1) : this.scanning ? force ? (this.queued ??= this.scanning.catch(() => !1).then(() => (this.queued = null, this.start())), this.queued) : this.scanning : this.start();
+  }
+  start() {
+    let p = this.scan().finally(() => {
+      this.scanning === p && (this.scanning = null);
+    });
+    return this.scanning = p, p;
   }
   async scan() {
     let now = this.now();
@@ -19247,7 +19280,7 @@ init_define_LUFF_CREW_ASSETS();
 
 // src/format.ts
 init_define_LUFF_CREW_ASSETS();
-var fmtTokens = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`, fmtCost = (usd) => usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`;
+var fmtTokens = (n) => n >= 999500 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`, fmtCost = (usd) => usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`;
 function fmtTime(ms) {
   let s = Math.max(0, Math.round(ms / 1e3)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = String(s % 60).padStart(2, "0");
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
@@ -19256,9 +19289,13 @@ function fmtDuration(ms) {
   let m = Math.max(0, Math.ceil(ms / 6e4)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m % 60}m` : `${m}m`;
 }
-var normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), clip = (s, max) => s.length > max ? s.slice(0, Math.max(1, max - 1)) + "\u2026" : s, textBar = (ratio, width, on = "\u25B0", off = "\u25B1") => {
-  let filled = Math.round(Math.max(0, Math.min(1, ratio)) * width);
-  return on.repeat(filled) + off.repeat(Math.max(0, width - filled));
+var normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), clip = (s, max) => {
+  if (s.length <= max) return s;
+  let chars = Array.from(s);
+  return chars.length > max ? chars.slice(0, Math.max(1, max - 1)).join("") + "\u2026" : s;
+}, textBar = (ratio, width, on = "\u25B0", off = "\u25B1") => {
+  let w = Math.max(0, Math.floor(Number.isFinite(width) ? width : 0)), filled = Math.round(Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0)) * w);
+  return on.repeat(filled) + off.repeat(Math.max(0, w - filled));
 };
 
 // src/types.ts
@@ -19266,18 +19303,24 @@ init_define_LUFF_CREW_ASSETS();
 var PHASES = ["plan", "design", "delegate", "review", "close"], EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
 // src/flow.ts
-var DEFAULT_TITLE = "Crew job", isPhase = (p) => typeof p == "string" && PHASES.includes(p), toCount = (n) => typeof n == "number" && Number.isFinite(n) ? Math.max(0, Math.round(n)) : void 0;
+var DEFAULT_TITLE = "Crew job", MAX_COUNT = 100, isPhase = (p) => typeof p == "string" && PHASES.includes(p), toCount = (n) => typeof n == "number" && Number.isFinite(n) ? Math.min(MAX_COUNT, Math.max(0, Math.round(n))) : void 0;
 function cleanTasks(tasks) {
-  return Array.isArray(tasks) ? tasks.filter((t) => typeof t?.title == "string" && t.title.trim()).map((t, i) => {
+  if (!Array.isArray(tasks)) return;
+  let newIndex = /* @__PURE__ */ new Map();
+  return tasks.filter((t, i) => {
+    let ok = typeof t?.title == "string" && t.title.trim() !== "";
+    return ok && newIndex.set(i + 1, newIndex.size + 1), ok;
+  }).map((t, i) => {
     let out = {
       title: (t.title ?? "").trim(),
-      after: [...new Set((t.after ?? []).filter((n) => Number.isInteger(n) && n > 0 && n !== i + 1))].sort((a, b) => a - b)
+      after: [...new Set((t.after ?? []).filter((n) => Number.isInteger(n) && newIndex.has(n) && newIndex.get(n) !== i + 1).map((n) => newIndex.get(n)))].sort((a, b) => a - b)
     };
     return t.agent?.trim() && (out.agent = t.agent.trim()), t.model?.trim() && (out.model = t.model.trim()), t.effort?.trim() && (out.effort = t.effort.trim().toLowerCase()), out;
-  }) : void 0;
+  });
 }
 function startsNewFlow(prev, input) {
-  if (!prev || prev.finished) return !0;
+  if (!prev) return !0;
+  if (prev.finished) return input.finished !== !0;
   let title = input.title?.trim();
   return title !== void 0 && title !== "" && title !== prev.title;
 }
@@ -19377,11 +19420,13 @@ var CrewTracker = class {
     if (this.follow.kind !== "project") return !1;
     let dir = this.projectDir ?? await findProjectDir(this.follow.cwd);
     if (!dir) return !1;
-    let want = progressKey(input), candidates = (await listSessions(dir)).slice(0, 6);
+    let want = progressKey(input);
+    if (this.session && await containsProgressCall(this.session.path, want)) return !1;
+    let candidates = (await listSessions(dir)).slice(0, 6), matches = [];
     for (let s of candidates)
-      if (s.id !== this.session?.id && !(this.now() - s.mtimeMs > 10 * 6e4) && await containsProgressCall(s.path, want))
-        return this.switchTo(s), !0;
-    return !1;
+      s.id !== this.session?.id && (this.now() - s.mtimeMs > 10 * 6e4 || await containsProgressCall(s.path, want) && matches.push(s));
+    let [only] = matches;
+    return matches.length !== 1 || !only ? !1 : (this.switchTo(only), !0);
   }
   /** Hides the current job's bar in views until another progress call arrives. */
   dismissFlow() {
@@ -19488,7 +19533,7 @@ var CrewTracker = class {
   // Subagents
   agentState(id) {
     let a = this.agents.get(id);
-    return a || (a = { id, metaChecked: 0, requests: /* @__PURE__ */ new Map(), model: "", lastAt: 0, contextTokens: 0 }, this.agents.set(id, a)), a;
+    return a || (a = { id, metaChecked: 0, metaCheckedAt: 0, requests: /* @__PURE__ */ new Map(), model: "", lastAt: 0, contextTokens: 0 }, this.agents.set(id, a)), a;
   }
   async pollAgents() {
     if (!this.session) return !1;
@@ -19503,7 +19548,7 @@ var CrewTracker = class {
       let m = /^agent-(.+)\.jsonl$/.exec(name);
       if (!m?.[1]) continue;
       let a = this.agentState(m[1]);
-      a.tail ??= new JsonlTail(join4(dir, name)), !a.meta && a.metaChecked < 5 && (a.metaChecked++, a.meta = await readMeta(join4(dir, `agent-${m[1]}.meta.json`)), a.meta && (changed = !0));
+      a.tail ??= new JsonlTail(join4(dir, name)), !a.meta && a.metaChecked < 300 && this.now() - a.metaCheckedAt >= 1e3 && (a.metaChecked++, a.metaCheckedAt = this.now(), a.meta = await readMeta(join4(dir, `agent-${m[1]}.meta.json`)), a.meta && (changed = !0));
       let { lines, reset } = await a.tail.read();
       reset && (a.requests.clear(), a.step = void 0);
       for (let line of lines) this.onAgentLine(a, line);
@@ -19897,10 +19942,12 @@ function claude(args) {
 }
 var hasClaudeCli = () => claude(["--version"]).ok;
 function readSettings(path) {
+  if (!existsSync3(path)) return {};
   try {
-    return JSON.parse(readFileSync4(path, "utf8"));
+    let parsed = JSON.parse(readFileSync4(path, "utf8"));
+    return parsed && typeof parsed == "object" && !Array.isArray(parsed) ? parsed : null;
   } catch {
-    return {};
+    return null;
   }
 }
 function setup(opts) {
@@ -19911,7 +19958,7 @@ function setup(opts) {
     if (exists && !opts.force)
       log(`\u2713 MCP server "${opts.name}" is already registered (use --force to replace it).`);
     else {
-      exists && !opts.dryRun && claude(["mcp", "remove", opts.name, "--scope", opts.scope]);
+      if (exists && !opts.dryRun) for (let scope of /* @__PURE__ */ new Set([opts.scope, "local", "project", "user"])) claude(["mcp", "remove", opts.name, "--scope", scope]);
       let args = ["mcp", "add", "--scope", opts.scope, opts.name, "--", ...cmd];
       if (opts.dryRun) log(`would run: claude ${args.map(quote).join(" ")}`);
       else {
@@ -19930,8 +19977,9 @@ ${r.out}`), 1;
     existing !== null && !existing.includes(MARKER) ? log(`! ${file} exists and is not ours: left as is.`) : opts.dryRun ? log(`would write ${file}`) : (mkdirSync2(dir, { recursive: !0 }), writeFileSync2(file, SLASH_COMMAND), log(`\u2713 Added the /agents-info command (${file}).`));
   }
   if (opts.statusline) {
-    let path = join5(claudeDir(), "settings.json"), settings = readSettings(path), current = settings.statusLine, self = cmd.map(quote).join(" ");
-    if (isOurStatusline(current?.command)) log("\u2713 The status line already includes Luff Crew.");
+    let path = join5(claudeDir(), "settings.json"), settings = readSettings(path), current = settings?.statusLine, self = cmd.map(quote).join(" ");
+    if (!settings) log(`! ${path} is not valid JSON: left as is. Fix it, then run setup --statusline again.`);
+    else if (isOurStatusline(current?.command)) log("\u2713 The status line already includes Luff Crew.");
     else {
       let command = current?.command ? `${self} statusline --wrap ${quote(current.command)}` : `${self} statusline`;
       opts.dryRun ? log(`would set statusLine.command to: ${command}`) : (existsSync3(path) && copyFileSync(path, `${path}.luff-crew.bak`), settings.statusLine = { ...current ?? {}, type: "command", command }, writeFileSync2(path, JSON.stringify(settings, null, 2) + `
@@ -19942,7 +19990,7 @@ ${r.out}`), 1;
 Next:
   1. Restart Claude Code (or run /mcp) so it picks up the server.
   2. Give Claude a job big enough for a few subagents, then type /agents-info.
-Settings: ${configPath()} (port ${DEFAULTS.port}, language auto, autoOpen off).`), 0;
+Settings: ${configPath()} (port ${loadConfig().port}, language auto, autoOpen off).`), 0;
 }
 function uninstall(opts) {
   if (hasClaudeCli()) {
@@ -19951,7 +19999,10 @@ function uninstall(opts) {
   }
   let file = join5(claudeDir(), "commands", "agents-info.md");
   existsSync3(file) && readFileSync4(file, "utf8").includes(MARKER) && (rmSync(file), log("\u2713 Removed the /agents-info command."));
-  let path = join5(claudeDir(), "settings.json"), settings = readSettings(path), line = settings.statusLine;
+  let path = join5(claudeDir(), "settings.json"), settings = readSettings(path);
+  if (!settings)
+    return log(`! ${path} is not valid JSON: left as is.`), 0;
+  let line = settings.statusLine;
   if (line?.command && isOurStatusline(line.command)) {
     let wrapped = /--wrap\s+('(?:[^']|'\\'')*'|\S+)\s*$/.exec(line.command)?.[1];
     wrapped ? settings.statusLine = { ...line, command: wrapped.startsWith("'") ? wrapped.slice(1, -1).replace(/'\\''/g, "'") : wrapped } : delete settings.statusLine, writeFileSync2(path, JSON.stringify(settings, null, 2) + `
@@ -19975,7 +20026,7 @@ async function doctor() {
     ok(`This folder has ${sessions.length} Claude Code session(s)${sessions[0] ? `, latest ${sessions[0].id.slice(0, 8)}` : ""}`);
   } else log(`- No Claude Code sessions for ${process.cwd()} yet (normal before the first run here).`);
   let settings = readSettings(join5(dir, "settings.json"));
-  if (isOurStatusline(settings.statusLine?.command)) {
+  if (isOurStatusline(settings?.statusLine?.command)) {
     let limits = readPlanLimits();
     ok(limits ? `Plan limits (5-hour / weekly) last reported ${fmtDuration(Date.now() - limits.reportedAt)} ago` : "Status line records plan limits (none reported yet: Claude.ai plans only, after the first reply)");
   } else log("- Plan limit % (5-hour / weekly) needs the status line. Run: luff-crew-monitor setup --statusline");
@@ -19990,7 +20041,7 @@ init_define_LUFF_CREW_ASSETS();
 import { spawn as spawn2 } from "node:child_process";
 async function readStdin(timeoutMs) {
   return process.stdin.isTTY ? "" : new Promise((resolve3) => {
-    let data = "", done = () => resolve3(data), timer = setTimeout(done, timeoutMs);
+    let data = "", done = () => resolve3(data), timer = setTimeout(() => resolve3(""), timeoutMs);
     process.stdin.setEncoding("utf8"), process.stdin.on("data", (chunk) => data += chunk), process.stdin.on("end", () => {
       clearTimeout(timer), done();
     });
@@ -19998,8 +20049,13 @@ async function readStdin(timeoutMs) {
 }
 function runWrapped(command, input) {
   return new Promise((resolve3) => {
-    let child = spawn2(command, { shell: !0, stdio: ["pipe", "pipe", "ignore"] }), out = "", timer = setTimeout(() => {
-      child.kill(), resolve3(out);
+    let group = process.platform !== "win32", child = spawn2(command, { shell: !0, detached: group, stdio: ["pipe", "pipe", "ignore"] }), out = "", timer = setTimeout(() => {
+      try {
+        group && child.pid ? process.kill(-child.pid, "SIGKILL") : child.kill();
+      } catch {
+        child.kill();
+      }
+      resolve3(out);
     }, 4e3);
     child.stdout.setEncoding("utf8"), child.stdout.on("data", (c) => out += c), child.on("close", () => {
       clearTimeout(timer), resolve3(out);

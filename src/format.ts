@@ -1,5 +1,5 @@
 export const fmtTokens = (n: number): string =>
-  n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`
+  n >= 999_500 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`
 
 export const fmtCost = (usd: number): string =>
   usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`
@@ -30,10 +30,15 @@ export const normalize = (s: string): string =>
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
 
-export const clip = (s: string, max: number): string => (s.length > max ? s.slice(0, Math.max(1, max - 1)) + '…' : s)
+export const clip = (s: string, max: number): string => {
+  if (s.length <= max) return s
+  const chars = Array.from(s)
+  return chars.length > max ? chars.slice(0, Math.max(1, max - 1)).join('') + '…' : s
+}
 
 /** A text bar such as `▰▰▰▱▱`. */
 export const textBar = (ratio: number, width: number, on = '▰', off = '▱'): string => {
-  const filled = Math.round(Math.max(0, Math.min(1, ratio)) * width)
-  return on.repeat(filled) + off.repeat(Math.max(0, width - filled))
+  const w = Math.max(0, Math.floor(Number.isFinite(width) ? width : 0))
+  const filled = Math.round(Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0)) * w)
+  return on.repeat(filled) + off.repeat(Math.max(0, w - filled))
 }

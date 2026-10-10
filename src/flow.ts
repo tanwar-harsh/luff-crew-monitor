@@ -3,20 +3,27 @@ import { PHASES } from './types.ts'
 import type { AgentRun, Flow, FlowView, Phase, PlannedTask, PlannedView, ProgressInput } from './types.ts'
 
 const DEFAULT_TITLE = 'Crew job'
+const MAX_COUNT = 100
 
 const isPhase = (p: unknown): p is Phase => typeof p === 'string' && (PHASES as readonly string[]).includes(p)
 
 const toCount = (n: unknown): number | undefined =>
-  typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.round(n)) : undefined
+  typeof n === 'number' && Number.isFinite(n) ? Math.min(MAX_COUNT, Math.max(0, Math.round(n))) : undefined
 
 /** Drops untitled tasks and nonsense dependency numbers. */
 export function cleanTasks(tasks: ProgressInput['tasks']): PlannedTask[] | undefined {
   if (!Array.isArray(tasks)) return undefined
-  const kept = tasks.filter(t => typeof t?.title === 'string' && t.title.trim())
+  // `after` numbers refer to the caller's 1-based positions; remap them past any dropped untitled tasks.
+  const newIndex = new Map<number, number>()
+  const kept = tasks.filter((t, i) => {
+    const ok = typeof t?.title === 'string' && t.title.trim() !== ''
+    if (ok) newIndex.set(i + 1, newIndex.size + 1)
+    return ok
+  })
   return kept.map((t, i) => {
     const out: PlannedTask = {
       title: (t.title ?? '').trim(),
-      after: [...new Set((t.after ?? []).filter(n => Number.isInteger(n) && n > 0 && n !== i + 1))].sort((a, b) => a - b),
+      after: [...new Set((t.after ?? []).filter(n => Number.isInteger(n) && newIndex.has(n) && newIndex.get(n) !== i + 1).map(n => newIndex.get(n)!))].sort((a, b) => a - b),
     }
     if (t.agent?.trim()) out.agent = t.agent.trim()
     if (t.model?.trim()) out.model = t.model.trim()
@@ -30,7 +37,8 @@ export function cleanTasks(tasks: ProgressInput['tasks']): PlannedTask[] | undef
  * nothing is running yet, the last job closed, or the title changed.
  */
 export function startsNewFlow(prev: Flow | null, input: ProgressInput): boolean {
-  if (!prev || prev.finished) return true
+  if (!prev) return true
+  if (prev.finished) return input.finished !== true
   const title = input.title?.trim()
   return title !== undefined && title !== '' && title !== prev.title
 }
