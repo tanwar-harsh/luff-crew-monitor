@@ -18,7 +18,6 @@ import {
   MASCOT_H,
   MASCOT_W,
   mascotSvg,
-  meterColor,
   OK,
   progressOf,
   runMeta,
@@ -32,6 +31,9 @@ import {
   stripSvg,
   textBar,
   limitsShort,
+  limitPairs,
+  ringSvg,
+  RING,
   typeColor,
 } from './draw.ts'
 
@@ -952,6 +954,23 @@ export const register: Register = (on, options) => {
 
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
+    // Plan limits sit at the right edge, beside the crew count: a colored ring
+    // per window on surfaces that draw pictures, a colored percent in the terminal.
+    const pairs = limitPairs(limits.windows)
+    const limitRings = (u: typeof ui) =>
+      'Svg' in u
+        ? pairs.map(([k, pct]) => (
+            <Box key={`lim-${k}`} flexDirection="row" alignItems="center" gap={1}>
+              <u.Svg source={ringSvg(pct)} alt={`${k} ${pct}% used`} width={RING} height={RING} />
+              <Text dimColor>{`${k} ${pct}%`}</Text>
+            </Box>
+          ))
+        : limitText()
+    const termColor = (pct: number) => (pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'blue')
+    const limitText = () =>
+      pairs.map(([k, pct]) => (
+        <Text key={`lim-${k}`} dimColor={pct < 70} color={termColor(pct)}>{`◔ ${k} ${pct}%`}</Text>
+      ))
     const dismissBar = (
       <Button key="hide" plain role="dismiss" label="✕" onPress={() => update($, panelAtom, p => ({ ...p, hiddenAt: Date.now() }))} />
     )
@@ -990,11 +1009,8 @@ export const register: Register = (on, options) => {
             <Text key="stats" dimColor wrap="truncate-end">
               {stats}
             </Text>
-            {short ? (
-              <Text key="limits" dimColor>
-                {short}
-              </Text>
-            ) : null}
+            <Box key="spacer" flexGrow={1} />
+            {limitRings(ui)}
             {panelButton}
             {dismissBar}
           </Box>
@@ -1016,7 +1032,8 @@ export const register: Register = (on, options) => {
           <Text dimColor wrap="truncate-end">
             {stats}
           </Text>
-          {short ? <Text dimColor>{short}</Text> : null}
+          <Box flexGrow={1} />
+          {limitText()}
           {panelButton}
           {dismissBar}
         </Box>
@@ -1051,11 +1068,8 @@ export const register: Register = (on, options) => {
             {label}
           </Text>
           <Text key="pct" dimColor>{`${Math.round(ratio * 100)}%`}</Text>
-          {short ? (
-            <Text key="limits" dimColor>
-              {short}
-            </Text>
-          ) : null}
+          <Box key="spacer" flexGrow={1} />
+          {limitRings(ui)}
           {crewButton}
           {shownFlow ? dismissBar : null}
         </Box>
@@ -1074,7 +1088,8 @@ export const register: Register = (on, options) => {
         <Text color={shownFlow?.finished ? 'green' : 'magenta'}>{textBar(ratio, width)}</Text>
         <Text bold>{label}</Text>
         <Text dimColor>{`${Math.round(ratio * 100)}%`}</Text>
-        {short ? <Text dimColor>{short}</Text> : null}
+        <Box flexGrow={1} />
+        {limitText()}
         {crewButton}
         {shownFlow ? dismissBar : null}
       </Box>

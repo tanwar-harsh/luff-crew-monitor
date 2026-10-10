@@ -213,3 +213,29 @@ export function limitsShort(windows: CrewLimitWindow[]): string {
 }
 
 export { clip }
+
+export const RING = 16
+
+/** A small circular meter for a usage window, colored by meterColor. */
+export function ringSvg(pct: number, size = RING): string {
+  const c = size / 2
+  const r = c - 2
+  const len = 2 * Math.PI * r
+  const fill = (Math.max(0, Math.min(100, pct)) / 100) * len
+  return svg(
+    size,
+    size,
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#8a8a8a" stroke-opacity=".3" stroke-width="2.5"/>` +
+      `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${meterColor(pct)}" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${fill.toFixed(2)} ${len.toFixed(2)}" transform="rotate(-90 ${c} ${c})"/>`,
+  )
+}
+
+/** The 5-hour and weekly windows, in that order, as [label, percent]. */
+export function limitPairs(windows: CrewLimitWindow[]): Array<[string, number]> {
+  const out: Array<[string, number]> = []
+  const five = windows.find(w => w.kind === 'five_hour')
+  const week = windows.find(w => w.kind === 'seven_day')
+  if (five) out.push(['5h', Math.round(five.percentUsed)])
+  if (week) out.push(['wk', Math.round(week.percentUsed)])
+  return out
+}
