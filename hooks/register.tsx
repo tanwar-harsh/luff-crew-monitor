@@ -857,7 +857,7 @@ export const register: Register = (on, options) => {
     const cols = Math.max(30, e.props.bodyColumns || 60)
     const barW = Math.max(8, Math.min(24, cols - 40))
     // The half-block mascot at a row's left edge, dropped when the pane is too narrow.
-    const hasMascot = cols >= 48
+    const hasMascot = cols >= 40
     const termMascot = (slot: number, effort: string | undefined, opts: { running?: boolean; dim?: boolean }) => (
       <Box key="m" flexDirection="column" width={TERM_MASCOT_W} flexShrink={0}>
         {mascotCells(slot, effort, opts.running ? Math.floor(now / 1000) : 0).map((cells, i) => (

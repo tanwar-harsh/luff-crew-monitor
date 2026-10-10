@@ -321,78 +321,72 @@ export function segmentsSvg(W: number, segments: Array<'done' | 'running' | 'tod
 }
 
 // ---------------------------------------------------------------------------
-// The terminal mascot: the same crew member on a 13×8 pixel grid (eleven for
-// the body and arms, two for what it holds), drawn with half blocks, two
-// pixels per cell, so it stands four lines tall.
+// The terminal mascot: the same crew member on an 8×6 pixel grid (seven for
+// the body, one for what it holds), drawn with half blocks, two pixels per
+// cell, so it stands three lines tall, the height of a row's text.
 //
-//   rows 0-1 hat · 2 head top · 3-4 eyes · 5 mouth and arms · 6 chin · 7 legs
+//   row 0 hat · 1 head top · 2-3 eyes · 4 chin and mouth · 5 legs
 
 export type Cell = { ch: string; fg?: string | undefined; bg?: string | undefined }
 
-export const TERM_MASCOT_W = 13
-export const TERM_MASCOT_H = 4
+export const TERM_MASCOT_W = 8
+export const TERM_MASCOT_H = 3
 
 type Dot = (x: number, y: number, c: string) => void
 type Span = (x0: number, x1: number, y: number, c: string) => void
 
 const TERM_HATS: Record<Look['hat'], (p: Dot, s: Span, c: string, d: string) => void> = {
-  bandana: (p, s, c, d) => { s(2, 8, 2, c); p(4, 2, '#fff'); p(7, 2, '#fff'); p(9, 2, c); p(10, 3, d) },
-  sailor: (_p, s, c) => { s(3, 7, 0, WHITE); s(2, 8, 1, WHITE); s(2, 8, 2, c) },
-  tricorne: (p, s, c) => { s(3, 7, 0, c); p(5, 0, GOLD); s(1, 9, 1, INK) },
-  beanie: (p, s, c, d) => { p(5, 0, WHITE); s(3, 7, 1, c); s(2, 8, 2, d) },
-  captain: (p, s, c) => { s(2, 8, 0, c); p(5, 0, GOLD); s(1, 9, 1, INK) },
-  headphones: (p, s, c) => { s(3, 7, 1, INK); p(2, 2, INK); p(8, 2, INK); s(0, 1, 3, c); s(0, 1, 4, c); s(9, 10, 3, c); s(9, 10, 4, c) },
-  antennae: (p, _s, c) => { p(2, 0, c); p(8, 0, c); p(3, 1, INK); p(7, 1, INK) },
-  spikes: (p, s, c) => { p(3, 0, c); p(5, 0, c); p(7, 0, c); s(2, 8, 1, c); s(2, 8, 2, c) },
-  bow: (p, s, c, d) => { p(6, 0, c); p(8, 0, c); s(6, 8, 1, c); p(7, 1, d) },
+  bandana: (p, s, c, d) => { s(1, 5, 1, c); p(3, 1, '#fff'); p(6, 1, d) },
+  sailor: (_p, s, c) => { s(2, 4, 0, WHITE); s(1, 5, 1, c) },
+  tricorne: (p, s, c) => { s(2, 4, 0, c); p(3, 0, GOLD); s(0, 6, 1, INK) },
+  beanie: (p, s, c, d) => { s(2, 4, 0, c); p(3, 0, WHITE); s(1, 5, 1, d) },
+  captain: (p, s, c) => { s(1, 5, 0, c); p(3, 0, GOLD); s(0, 6, 1, INK) },
+  headphones: (p, s, c) => { s(2, 4, 0, INK); p(1, 1, INK); p(5, 1, INK); p(0, 2, c); p(6, 2, c); p(0, 3, c); p(6, 3, c) },
+  antennae: (p, _s, c) => { p(1, 0, c); p(5, 0, c) },
+  spikes: (p, s, c) => { p(1, 0, c); p(3, 0, c); p(5, 0, c); s(1, 5, 1, c) },
+  bow: (p, _s, c, d) => { p(4, 0, c); p(5, 0, d); p(6, 0, c) },
 }
 
 const TERM_EYES: Record<Look['eyes'], (p: Dot, s: Span, L: Look) => void> = {
-  round: p => { for (const x of [3, 7]) { p(x, 3, INK); p(x, 4, INK) } },
-  big: p => { for (const x of [3, 7]) { p(x, 3, '#fff'); p(x, 4, INK) } },
-  sleepy: (_p, s, L) => { s(2, 3, 3, shade(L.body, 0.72)); s(7, 8, 3, shade(L.body, 0.72)); s(2, 3, 4, INK); s(7, 8, 4, INK) },
-  patch: (p, s) => { s(1, 9, 2, INK); s(2, 4, 3, INK); s(2, 4, 4, INK); p(7, 3, INK); p(7, 4, INK) },
-  glasses: (p, s) => { s(2, 8, 3, INK); for (const x of [2, 4, 6, 8]) p(x, 4, INK); p(3, 4, LENS); p(7, 4, LENS) },
-  fierce: (p, s) => { s(2, 3, 3, INK); s(7, 8, 3, INK); p(3, 4, INK); p(7, 4, INK) },
+  round: p => { for (const x of [2, 4]) { p(x, 2, INK); p(x, 3, INK) } },
+  big: p => { for (const x of [2, 4]) { p(x, 2, '#fff'); p(x, 3, INK) } },
+  sleepy: (p, _s, L) => { for (const x of [2, 4]) { p(x, 2, shade(L.body, 0.72)); p(x, 3, INK) } },
+  patch: (p, s) => { s(0, 6, 1, INK); s(1, 2, 2, INK); s(1, 2, 3, INK); p(4, 2, INK); p(4, 3, INK) },
+  glasses: (p, s) => { s(1, 5, 2, INK); p(1, 3, INK); p(2, 3, LENS); p(3, 3, INK); p(4, 3, LENS); p(5, 3, INK) },
+  fierce: (p, s) => { s(1, 2, 2, INK); s(4, 5, 2, INK); p(2, 3, INK); p(4, 3, INK) },
 }
 
 const TERM_MOUTHS: Record<Look['mouth'], (p: Dot, s: Span) => void> = {
-  smile: p => { p(4, 5, INK); p(6, 5, INK); p(5, 6, INK) },
-  flat: (_p, s) => s(4, 6, 5, INK),
-  open: (_p, s) => { s(4, 6, 5, '#7A2230'); s(4, 6, 6, '#E5737F') },
-  mustache: (p, s) => { s(3, 7, 5, BROWN); p(3, 6, BROWN); p(7, 6, BROWN) },
-  beard: (p, s) => { s(2, 8, 5, BROWN); s(2, 8, 6, BROWN); p(5, 5, '#7A2230') },
-  grin: (_p, s) => { s(3, 7, 5, INK); s(4, 6, 5, '#fff'); s(3, 7, 6, INK) },
+  smile: p => p(3, 4, INK),
+  flat: (_p, s) => s(2, 4, 4, INK),
+  open: (p, s) => { s(2, 4, 4, '#7A2230'); p(3, 4, '#E5737F') },
+  mustache: (_p, s) => s(2, 4, 4, BROWN),
+  beard: (p, s) => { s(1, 5, 4, BROWN); p(0, 3, BROWN); p(6, 3, BROWN); p(3, 4, '#7A2230') },
+  grin: (_p, s) => s(2, 4, 4, '#fff'),
 }
 
 const TERM_EXTRAS: Record<Look['extra'], (p: Dot, s: Span, L: Look) => void> = {
   none: () => {},
-  blush: p => { p(2, 5, '#FF8FA3'); p(8, 5, '#FF8FA3') },
-  scarf: (p, s, L) => { s(1, 9, 6, L.extraColor); p(8, 7, shade(L.extraColor, 0.8)) },
-  belt: (p, s) => { s(1, 9, 6, '#3A2A1E'); p(5, 6, GOLD) },
+  blush: p => { p(1, 3, '#FF8FA3'); p(5, 3, '#FF8FA3') },
+  scarf: (p, s, L) => { s(1, 5, 4, L.extraColor); p(6, 4, shade(L.extraColor, 0.8)) },
+  belt: (p, s) => { s(1, 5, 4, '#3A2A1E'); p(3, 4, GOLD) },
 }
 
 const TERM_GEAR: Record<string, (p: Dot, s: Span, frame: number) => void> = {
   // A mop that swishes.
-  low: (p, s, f) => { for (let y = 1; y <= 5; y++) p(11, y, WOOD); s(10, 12, 6, '#CFCFCB'); for (const x of f % 2 ? [10, 12] : [11]) p(x, 7, '#CFCFCB') },
+  low: (p, _s, f) => { for (let y = 0; y <= 3; y++) p(7, y, WOOD); p(7, 4, '#CFCFCB'); p(f % 2 ? 6 : 7, 5, '#CFCFCB') },
   // An oar that rows.
-  medium: (p, s, f) => { p(f % 2 ? 12 : 11, 0, WOOD); p(f % 2 ? 12 : 11, 1, WOOD); for (let y = 2; y <= 4; y++) p(11, y, WOOD); for (let y = 5; y <= 7; y++) s(11, 12, y, '#8A6038') },
+  medium: (p, _s, f) => { for (let y = f % 2 ? 1 : 0; y <= 2; y++) p(7, y, WOOD); for (let y = 3; y <= 5; y++) p(7, y, '#8A6038') },
   // A spyglass that scans.
-  high: (p, _s, f) => { const y = f % 2 ? 3 : 4; p(10, y, '#8C6F12'); p(11, y, '#C9A227'); p(12, y, '#9BD3F5') },
+  high: (p, _s, f) => { p(7, f % 2 ? 1 : 2, '#9BD3F5'); p(7, f % 2 ? 2 : 3, '#C9A227') },
   // A lantern whose flame flickers.
-  xhigh: (p, s, f) => { p(11, 2, INK); s(11, 12, 3, GOLD); p(11, 4, f % 2 ? '#FFD27A' : '#FF8A3D'); p(12, 4, GOLD); s(11, 12, 5, GOLD); s(11, 12, 6, INK) },
+  xhigh: p => { p(7, 1, INK); p(7, 2, GOLD); p(7, 4, GOLD); p(7, 5, INK) },
   // A ship's wheel that turns.
-  max: (p, _s, f) => {
-    const a = f % 2 ? WOOD : '#8A6038'
-    const b = f % 2 ? '#8A6038' : WOOD
-    for (const [x, y] of [[10, 3], [12, 3], [10, 5], [12, 5]] as const) p(x, y, a)
-    for (const [x, y] of [[11, 3], [10, 4], [12, 4], [11, 5]] as const) p(x, y, b)
-    p(11, 4, GOLD); p(11, 2, WOOD); p(11, 6, WOOD)
-  },
+  max: (p, _s, f) => { for (let y = 1; y <= 4; y++) p(7, y, (y + f) % 2 ? GOLD : WOOD) },
 }
 
 /**
- * A crew member as four lines of cells, runs of one style merged. `frame`
+ * A crew member as three lines of cells, runs of one style merged. `frame`
  * alternates the legs and moves what it holds, so a running row walks as the
  * pane redraws.
  */
@@ -408,14 +402,15 @@ export function mascotCells(slot: number, effort: string | undefined, frame = 0)
   const s: Span = (x0, x1, y, c) => {
     for (let x = x0; x <= x1; x++) p(x, y, c)
   }
-  // A round body: head top, two full rows, arms out, a chin, walking feet.
-  s(2, 8, 2, B); s(1, 9, 3, B); s(1, 9, 4, B); s(0, 10, 5, B); s(1, 9, 6, B)
-  for (const x of frame % 2 ? [3, 4, 6, 7] : [2, 3, 7, 8]) p(x, 7, D)
+  // A round body: head top, two full rows, a chin, walking feet.
+  s(1, 5, 1, B); s(0, 6, 2, B); s(0, 6, 3, B); s(1, 5, 4, B)
+  for (const x of frame % 2 ? [1, 3, 5] : [1, 2, 4, 5]) p(x, 5, D)
   TERM_EXTRAS[L.extra](p, s, L)
   TERM_EYES[L.eyes](p, s, L)
   TERM_MOUTHS[L.mouth](p, s)
   TERM_HATS[L.hat](p, s, L.hatColor, shade(L.hatColor, 0.72))
   if (effort) TERM_GEAR[effort]?.(p, s, frame)
+  if (effort === 'xhigh') p(7, 3, frame % 2 ? '#FFD27A' : '#FF8A3D')
   const lines: Cell[][] = []
   for (let j = 0; j < px.length; j += 2) {
     const cells: Cell[] = []

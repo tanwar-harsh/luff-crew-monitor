@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 — 2026-10-10
+
+- Terminal mascots about 40% smaller: an 8×6 pixel crew member, three lines tall like the row beside it and eight columns wide, with the same hats, eyes, mouths and gear. Panes from 40 columns show them.
+
 ## 1.5.1 — 2026-10-10
 
 - Panel mascots are 40% smaller (44×38 to 27×24), drawn at native scale so every detail is kept.
