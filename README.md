@@ -74,6 +74,11 @@ Don't use both in Claude Code: the mod already provides the same tools.
 
 Inside Claude is the default and needs nothing. If you'd also like the crew in a browser tab:
 
+<p align="center">
+  <img src="docs/browser-light.png" alt="The Luff Crew browser view in light theme: a finished job and its five crew members" width="48%">
+  <img src="docs/browser-dark.png" alt="The Luff Crew browser view in dark theme" width="48%">
+</p>
+
 | Command | What it does |
 | --- | --- |
 | `/agents-web` | Starts the browser view for this session on `localhost` (port 7420, or the next free one) and opens it. Run it again to reopen the tab. |
@@ -153,7 +158,7 @@ luff-crew-monitor doctor          Check the installation
 luff-crew-monitor uninstall       Undo setup
 ```
 
-Its settings live in `~/.luff-crew/config.json`, or in `LUFF_CREW_PORT`, `LUFF_CREW_LANG`, `LUFF_CREW_AUTO_OPEN` and `LUFF_CREW_STALL_MINUTES`. `autoOpen` is off by default: the MCP server opens the browser only when its `open_dashboard` tool is called. Set it to `true` to have the dashboard open by itself when a job with a plan starts.
+Its settings live in `~/.luff-crew/config.json`, or in `LUFF_CREW_PORT`, `LUFF_CREW_LANG`, `LUFF_CREW_AUTO_OPEN`, `LUFF_CREW_STALL_MINUTES` and `LUFF_CREW_STEP_REPORTS`. `stepReports` (`off`, `light` or `full`, default `light`) works as the mod's option of the same name: how often subagents are asked to report their steps, and with `off` the `step` tool isn't offered. `autoOpen` is off by default: the MCP server opens the browser only when its `open_dashboard` tool is called. Set it to `true` to have the dashboard open by itself when a job with a plan starts.
 
 ## Development
 

@@ -6216,7 +6216,7 @@ function modelLabel(id) {
 }
 
 // src/config.ts
-var DEFAULTS = { port: 7420, language: "auto", autoOpen: !1, stallMinutes: 30 }, configPath = () => join2(appDir(), "config.json");
+var DEFAULTS = { port: 7420, language: "auto", autoOpen: !1, stallMinutes: 30, stepReports: "light" }, configPath = () => join2(appDir(), "config.json");
 function readJson(path) {
   try {
     let value = JSON.parse(readFileSync(path, "utf8"));
@@ -6238,13 +6238,14 @@ function cleanTable(v, ok) {
   for (let [k, x] of Object.entries(v)) k.trim() !== "" && ok(x) && (out[k] = x);
   return Object.keys(out).length ? out : void 0;
 }
-var isPrice = (x) => Array.isArray(x) && x.length === 5 && x.every((n) => typeof n == "number" && Number.isFinite(n) && n >= 0), isWindow = (x) => typeof x == "number" && Number.isFinite(x) && x > 0, lang = (v) => v === "en" || v === "ru" || v === "auto" ? v : void 0;
+var isPrice = (x) => Array.isArray(x) && x.length === 5 && x.every((n) => typeof n == "number" && Number.isFinite(n) && n >= 0), isWindow = (x) => typeof x == "number" && Number.isFinite(x) && x > 0, lang = (v) => v === "en" || v === "ru" || v === "auto" ? v : void 0, stepReports = (v) => v === "off" || v === "light" || v === "full" ? v : void 0;
 function loadConfig(env = process.env) {
   let file = readJson(configPath()), cfg = {
     port: port(env.LUFF_CREW_PORT) ?? port(file.port) ?? DEFAULTS.port,
     language: lang(env.LUFF_CREW_LANG) ?? lang(file.language) ?? DEFAULTS.language,
     autoOpen: bool(env.LUFF_CREW_AUTO_OPEN) ?? (typeof file.autoOpen == "boolean" ? file.autoOpen : DEFAULTS.autoOpen),
-    stallMinutes: num(env.LUFF_CREW_STALL_MINUTES) ?? num(file.stallMinutes) ?? DEFAULTS.stallMinutes
+    stallMinutes: num(env.LUFF_CREW_STALL_MINUTES) ?? num(file.stallMinutes) ?? DEFAULTS.stallMinutes,
+    stepReports: stepReports(env.LUFF_CREW_STEP_REPORTS) ?? stepReports(file.stepReports) ?? DEFAULTS.stepReports
   }, prices = cleanTable(file.prices, isPrice);
   prices && (cfg.prices = prices);
   let windows = cleanTable(file.contextWindows, isWindow);
@@ -18891,7 +18892,7 @@ var STRINGS = {
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.3";
+var VERSION = "1.6.4";
 
 // src/dashboard/page.ts
 var cached2 = null;
@@ -19894,7 +19895,20 @@ function renderStatusline(snap, opts) {
 }
 
 // src/mcp.ts
-var SERVER_NAME = "luff-crew", INSTRUCTIONS = 'Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.\n\nWhen you split a job across subagents:\n1. After presenting the plan, call `progress` with a short title, the tasks (each title EXACTLY equal to the Agent `description` you will use) and phase "delegate".\n2. The bar counts finished subagents by itself; call `progress` again only to switch `phase` to "review" or to re-plan.\n3. When everything is finished, call `progress` once with `finished: true`.\n\nTell each subagent, in its prompt, to call `step` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.\n\nUse `crew_status` to read the crew as text and `open_dashboard` when the user asks to see the agents panel.', taskSchema = object2({
+var SERVER_NAME = "luff-crew", STEP_BRIEF = {
+  off: "Do not ask subagents to report steps; the dashboard follows them on its own.",
+  light: "Tell each subagent, in its prompt, to call `step` at most twice: right after reading its brief (done: 0, total: its plan in 3-8 steps) and once about halfway.",
+  full: "Tell each subagent, in its prompt, to call `step` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes."
+}, instructions = (steps) => `Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.
+
+When you split a job across subagents:
+1. After presenting the plan, call \`progress\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
+2. The bar counts finished subagents by itself; call \`progress\` again only to switch \`phase\` to "review" or to re-plan.
+3. When everything is finished, call \`progress\` once with \`finished: true\`.
+
+${STEP_BRIEF[steps]}
+
+Use \`crew_status\` to read the crew as text and \`open_dashboard\` when the user asks to see the agents panel.`, taskSchema = object2({
   title: string2().min(1).describe("A few words; reuse it verbatim as the Agent tool description."),
   agent: string2().optional().describe('Subagent type it will run as, e.g. "general-purpose" or "Explore".'),
   model: string2().optional().describe('Model it is expected to run on, e.g. "opus", "sonnet", "haiku".'),
@@ -19902,7 +19916,7 @@ var SERVER_NAME = "luff-crew", INSTRUCTIONS = 'Luff Crew tracks subagents (helpe
   after: array(number2().int().positive()).optional().describe("Numbers (1-based) of the tasks this one waits for.")
 });
 async function runMcpServer() {
-  let cfg = loadConfig(), cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd(), follow = process.env.CLAUDE_CODE_SESSION_ID ? { kind: "project", cwd, preferSessionId: process.env.CLAUDE_CODE_SESSION_ID } : { kind: "project", cwd }, monitor = new Monitor(follow, cfg), server = new McpServer({ name: SERVER_NAME, title: "Luff Crew Monitor", version: VERSION }, { instructions: INSTRUCTIONS });
+  let cfg = loadConfig(), cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd(), follow = process.env.CLAUDE_CODE_SESSION_ID ? { kind: "project", cwd, preferSessionId: process.env.CLAUDE_CODE_SESSION_ID } : { kind: "project", cwd }, monitor = new Monitor(follow, cfg), server = new McpServer({ name: SERVER_NAME, title: "Luff Crew Monitor", version: VERSION }, { instructions: instructions(cfg.stepReports) });
   server.registerTool(
     "progress",
     {
@@ -19924,11 +19938,11 @@ async function runMcpServer() {
       let snap = await monitor.refresh(), url = monitor.dashboardUrl;
       return snap.flow && input.tasks?.length && (url = await monitor.autoOpenFor(snap.flow.title).catch(() => url)), { content: [{ type: "text", text: `ok: ${snap.flow ? flowLabel(snap.flow, snap.lang) : "ok"}${url ? ` \xB7 dashboard ${url}` : ""}` }] };
     }
-  ), server.registerTool(
+  ), cfg.stepReports !== "off" && server.registerTool(
     "step",
     {
       title: "Report own step",
-      description: "For subagents: report progress on your own task to the Luff Crew dashboard. Right after reading your brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; call it again as each step finishes. Cheap and silent: it only moves your progress bar.",
+      description: "For subagents: report progress on your own task to the Luff Crew dashboard. Right after reading your brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; call it again only as often as your brief asks. Silent: it only moves your progress bar.",
       inputSchema: {
         done: number2().int().min(0).describe("Steps finished so far."),
         total: number2().int().min(1).optional().describe("Steps planned; may change if the plan changes."),

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.4 — 2026-10-11
+
+- **`stepReports` for the standalone MCP server too**: set it in `~/.luff-crew/config.json` or `LUFF_CREW_STEP_REPORTS` (`off`, `light` — the default — or `full`). Its instructions brief subagents to match, and with `off` the `step` tool isn't offered.
+- README: screenshots of the browser view, showing the crew.
+
 ## 1.6.3 — 2026-10-11
 
 - **The browser view (`/agents-web`) shows the crew too**: every agent and planned task there is now the same crew member as in Claude's panel (its own color, hat, eyes, mouth and extra, with gear for its effort), instead of a look-alike per agent type. The looks live in one shared module, `src/crew.ts`, and the server sends each one drawn, so the panel and the browser can't drift apart.

@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import * as z from 'zod'
 
 import { loadConfig } from './config.ts'
+import type { StepReports } from './config.ts'
 import { Monitor } from './monitor.ts'
 import { flowLabel, renderStatus } from './render-text.ts'
 import { EFFORTS, PHASES } from './types.ts'
@@ -11,14 +12,20 @@ import { VERSION } from './version.ts'
 
 export const SERVER_NAME = 'luff-crew'
 
-const INSTRUCTIONS = `Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.
+const STEP_BRIEF: Record<StepReports, string> = {
+  off: 'Do not ask subagents to report steps; the dashboard follows them on its own.',
+  light: 'Tell each subagent, in its prompt, to call `step` at most twice: right after reading its brief (done: 0, total: its plan in 3-8 steps) and once about halfway.',
+  full: 'Tell each subagent, in its prompt, to call `step` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.',
+}
+
+export const instructions = (steps: StepReports): string => `Luff Crew tracks subagents (helper Claudes started with the Agent tool) and shows them on a live dashboard: model, effort, steps, context, estimated cost and time.
 
 When you split a job across subagents:
 1. After presenting the plan, call \`progress\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
 2. The bar counts finished subagents by itself; call \`progress\` again only to switch \`phase\` to "review" or to re-plan.
 3. When everything is finished, call \`progress\` once with \`finished: true\`.
 
-Tell each subagent, in its prompt, to call \`step\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.
+${STEP_BRIEF[steps]}
 
 Use \`crew_status\` to read the crew as text and \`open_dashboard\` when the user asks to see the agents panel.`
 
@@ -38,7 +45,7 @@ export async function runMcpServer(): Promise<void> {
     : { kind: 'project' as const, cwd }
   const monitor = new Monitor(follow, cfg)
 
-  const server = new McpServer({ name: SERVER_NAME, title: 'Luff Crew Monitor', version: VERSION }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: SERVER_NAME, title: 'Luff Crew Monitor', version: VERSION }, { instructions: instructions(cfg.stepReports) })
 
   server.registerTool(
     'progress',
@@ -71,25 +78,28 @@ export async function runMcpServer(): Promise<void> {
     },
   )
 
-  server.registerTool(
-    'step',
-    {
-      title: 'Report own step',
-      description:
-        'For subagents: report progress on your own task to the Luff Crew dashboard. ' +
-        'Right after reading your brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; ' +
-        'call it again as each step finishes. Cheap and silent: it only moves your progress bar.',
-      inputSchema: {
-        done: z.number().int().min(0).describe('Steps finished so far.'),
-        total: z.number().int().min(1).optional().describe('Steps planned; may change if the plan changes.'),
-        note: z.string().max(120).optional().describe('The step in progress, a few words.'),
+  // With step reports off, subagents never call it: keep its schema out of their requests.
+  if (cfg.stepReports !== 'off') {
+    server.registerTool(
+      'step',
+      {
+        title: 'Report own step',
+        description:
+          'For subagents: report progress on your own task to the Luff Crew dashboard. ' +
+          'Right after reading your brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; ' +
+          'call it again only as often as your brief asks. Silent: it only moves your progress bar.',
+        inputSchema: {
+          done: z.number().int().min(0).describe('Steps finished so far.'),
+          total: z.number().int().min(1).optional().describe('Steps planned; may change if the plan changes.'),
+          note: z.string().max(120).optional().describe('The step in progress, a few words.'),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    },
-    // The call itself is recorded in the worker's transcript, which is where the
-    // dashboard reads it from: that is how it knows which worker reported.
-    async () => ({ content: [{ type: 'text', text: 'ok' }] }),
-  )
+      // The call itself is recorded in the worker's transcript, which is where the
+      // dashboard reads it from: that is how it knows which worker reported.
+      async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+    )
+  }
 
   server.registerTool(
     'crew_status',

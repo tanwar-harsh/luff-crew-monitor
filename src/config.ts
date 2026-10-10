@@ -15,13 +15,17 @@ export interface Config {
   autoOpen: boolean
   /** A run with no transcript activity for this long, and no end, is marked stalled. */
   stallMinutes: number
+  /** How often subagents are asked to report their steps; each report is one more model request. */
+  stepReports: StepReports
   /** USD per MTok as [input, 5m write, 1h write, cache read, output], keyed by a model id substring. */
   prices?: Record<string, number[]>
   /** Context window sizes keyed by a model id substring. */
   contextWindows?: Record<string, number>
 }
 
-export const DEFAULTS: Config = { port: 7420, language: 'auto', autoOpen: false, stallMinutes: 30 }
+export type StepReports = 'off' | 'light' | 'full'
+
+export const DEFAULTS: Config = { port: 7420, language: 'auto', autoOpen: false, stallMinutes: 30, stepReports: 'light' }
 
 export const configPath = (): string => join(appDir(), 'config.json')
 
@@ -62,6 +66,7 @@ const isPrice = (x: unknown): x is number[] =>
 const isWindow = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0
 
 const lang = (v: unknown): Config['language'] | undefined => (v === 'en' || v === 'ru' || v === 'auto' ? v : undefined)
+const stepReports = (v: unknown): StepReports | undefined => (v === 'off' || v === 'light' || v === 'full' ? v : undefined)
 
 /** Defaults, then `~/.luff-crew/config.json`, then `LUFF_CREW_*` environment variables. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -71,6 +76,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     language: lang(env.LUFF_CREW_LANG) ?? lang(file.language) ?? DEFAULTS.language,
     autoOpen: bool(env.LUFF_CREW_AUTO_OPEN) ?? (typeof file.autoOpen === 'boolean' ? file.autoOpen : DEFAULTS.autoOpen),
     stallMinutes: num(env.LUFF_CREW_STALL_MINUTES) ?? num(file.stallMinutes) ?? DEFAULTS.stallMinutes,
+    stepReports: stepReports(env.LUFF_CREW_STEP_REPORTS) ?? stepReports(file.stepReports) ?? DEFAULTS.stepReports,
   }
   const prices = cleanTable(file.prices, isPrice)
   if (prices) cfg.prices = prices
