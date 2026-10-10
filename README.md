@@ -29,7 +29,7 @@ That's it. The MCP server and `/agents-info` come with the plugin.
 **Option B: MCP server + setup command.** From your terminal:
 
 ```bash
-npm install -g github:tanwar-harsh/luff-crew-monitor
+npm install -g https://codeload.github.com/tanwar-harsh/luff-crew-monitor/tar.gz/refs/heads/main
 ```
 
 ```bash

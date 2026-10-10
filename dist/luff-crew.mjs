@@ -19549,7 +19549,7 @@ async function runMcpServer() {
 // src/setup.ts
 init_define_LUFF_CREW_ASSETS();
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync3, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync3, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join as join4, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 var MARKER = "<!-- luff-crew-monitor -->", SLASH_COMMAND = `---
@@ -19563,10 +19563,8 @@ Reply with the dashboard URL and a two-line summary of the crew: how many are ru
 `);
 }, quote = (s) => /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`, NPX_SPEC = "github:tanwar-harsh/luff-crew-monitor";
 function launchCommand() {
-  let script = process.argv[1] ? resolve(process.argv[1]) : fileURLToPath(import.meta.url);
-  if (/[\\/]_npx[\\/]/.test(script)) return ["npx", "-y", NPX_SPEC];
-  let which = spawnSync(process.platform === "win32" ? "where" : "which", ["luff-crew-monitor"], { encoding: "utf8" });
-  return which.status === 0 && which.stdout.trim() ? ["luff-crew-monitor"] : [process.execPath, script];
+  let script = process.argv[1] ? realpathSync(resolve(process.argv[1])) : fileURLToPath(import.meta.url);
+  return /[\\/]_npx[\\/]/.test(script) ? ["npx", "-y", NPX_SPEC] : [process.execPath, script];
 }
 function claude(args) {
   let r = spawnSync("claude", args, { encoding: "utf8", shell: process.platform === "win32" });

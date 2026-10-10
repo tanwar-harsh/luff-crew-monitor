@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -39,12 +39,13 @@ const quote = (s: string): string => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.rep
 /** Where npx fetches the package from. Switch to `luff-crew-monitor@latest` once it is on npm. */
 export const NPX_SPEC = 'github:tanwar-harsh/luff-crew-monitor'
 
-/** How Claude Code should start this server, based on how this copy was launched. */
+/**
+ * How Claude Code should start this server, based on how this copy was launched.
+ * Absolute paths, because GUI apps often start without the shell's PATH (nvm, volta, ...).
+ */
 export function launchCommand(): string[] {
-  const script = process.argv[1] ? resolve(process.argv[1]) : fileURLToPath(import.meta.url)
+  const script = process.argv[1] ? realpathSync(resolve(process.argv[1])) : fileURLToPath(import.meta.url)
   if (/[\\/]_npx[\\/]/.test(script)) return ['npx', '-y', NPX_SPEC]
-  const which = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['luff-crew-monitor'], { encoding: 'utf8' })
-  if (which.status === 0 && which.stdout.trim()) return ['luff-crew-monitor']
   return [process.execPath, script]
 }
 
