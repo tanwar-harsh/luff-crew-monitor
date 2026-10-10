@@ -17,7 +17,7 @@ Usage
   luff-crew-monitor                 Run as an MCP server over stdio (how Claude Code starts it)
   luff-crew-monitor setup           Register with Claude Code and add the /agents-info command
       --scope user|project|local      Where to register (default: user)
-      --statusline                    Also add the job bar to Claude Code's status line
+      --statusline                    Also add the job bar to Claude Code's status line and record plan limits
       --force                         Replace an existing registration
       --dry-run                       Show what would change
   luff-crew-monitor dashboard       Open the dashboard without Claude (follows the latest session)

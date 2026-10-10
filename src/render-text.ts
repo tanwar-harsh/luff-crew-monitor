@@ -1,7 +1,7 @@
-import { clip, fmtCost, fmtTime, fmtTokens, textBar } from './format.ts'
+import { clip, fmtCost, fmtDuration, fmtTime, fmtTokens, textBar } from './format.ts'
 import { stringsFor } from './i18n.ts'
 import { modelLabel } from './pricing.ts'
-import type { AgentRun, FlowView, Snapshot } from './types.ts'
+import type { AgentRun, FlowView, LimitWindowView, Snapshot } from './types.ts'
 
 /** `Tasks 3/5`, `Plan`, `Done`: what the bar's pill says. */
 export function flowLabel(f: FlowView, lang: Snapshot['lang']): string {
@@ -31,10 +31,29 @@ function runLine(a: AgentRun, snap: Snapshot): string {
   return `  ${GLYPH[a.status]} ${clip(a.description, 60)}  [${a.type} · ${model}${extra.length ? ' · ' + extra.join(' · ') : ''}]${steps}\n      ${stats}`
 }
 
+function limitLine(label: string, w: LimitWindowView, snap: Snapshot): string {
+  const s = stringsFor(snap.lang)
+  const plan =
+    w.usedPct === null
+      ? s.noPlan
+      : `${textBar(w.usedPct / 100, 10)} ${Math.round(w.usedPct)}%${w.resetsAt ? ` · ${s.resetsIn} ${fmtDuration(w.resetsAt - snap.now)}` : ` · ${s.startsNext}`}`
+  return `  ${label.padEnd(16)} ${plan} · ≈${fmtCost(w.costUsd)} · ${fmtTokens(w.tokens)} ${s.tokensWord}`
+}
+
+/** The 5-hour and weekly plan windows, as text. */
+export function renderLimits(snap: Snapshot): string[] {
+  const l = snap.limits
+  if (!l) return []
+  const s = stringsFor(snap.lang)
+  return [`${s.limits}`, limitLine(s.fiveHour, l.fiveHour, snap), limitLine(s.weekly, l.sevenDay, snap)]
+}
+
 /** A plain-text panel: what `crew_status` returns and `dashboard --print` shows. */
 export function renderStatus(snap: Snapshot, dashboardUrl?: string): string {
   const s = stringsFor(snap.lang)
   const out: string[] = []
+  const limits = renderLimits(snap)
+  if (limits.length) out.push(...limits, '')
   const f = snap.flow
   if (f) {
     out.push(`${f.title}  ${textBar(f.ratio, 16)}  ${flowLabel(f, snap.lang)}  ${Math.round(f.ratio * 100)}%`)

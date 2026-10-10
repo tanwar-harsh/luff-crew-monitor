@@ -2,6 +2,7 @@ import type { Config, Lang } from './config.ts'
 import { resolveLang } from './config.ts'
 import { startDashboard } from './dashboard/server.ts'
 import type { Dashboard } from './dashboard/server.ts'
+import { limitsView, readPlanLimits, UsageScanner } from './limits.ts'
 import { openBrowser } from './open.ts'
 import { CrewTracker } from './tracker.ts'
 import type { FollowMode } from './tracker.ts'
@@ -12,6 +13,7 @@ const TICK_MS = 1000
 /** A tracker plus the dashboard that shows it, polled while anyone is watching. */
 export class Monitor {
   readonly tracker: CrewTracker
+  readonly usage = new UsageScanner()
   readonly cfg: Config
   readonly lang: Lang
   private dashboard: Dashboard | null = null
@@ -37,11 +39,12 @@ export class Monitor {
   }
 
   snapshot(): Snapshot {
-    return this.tracker.snapshot(this.lang)
+    const snap = this.tracker.snapshot(this.lang)
+    return { ...snap, limits: limitsView(readPlanLimits(), this.usage, snap.now) }
   }
 
   async refresh(): Promise<Snapshot> {
-    await this.poll()
+    await Promise.all([this.poll(), this.usage.poll(true)])
     return this.snapshot()
   }
 
@@ -59,7 +62,7 @@ export class Monitor {
     const watched = (this.dashboard?.clients() ?? 0) > 0
     if (!watched && !this.alwaysPoll) return
     try {
-      await this.poll()
+      await Promise.all([this.poll(), this.usage.poll()])
       this.dashboard?.push()
     } catch (err) {
       process.stderr.write(`[luff-crew] poll failed: ${(err as Error).message}\n`)

@@ -37,7 +37,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts",
+    "test": "node --test test/*.spec.ts",
     "check": "npm run typecheck && npm run build && npm test",
     "demo": "node scripts/demo.mjs"
   },

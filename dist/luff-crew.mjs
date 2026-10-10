@@ -128,6 +128,31 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; bo
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 
+/* plan limits */
+.limits { padding: 14px 16px; margin-bottom: 14px; }
+.limits-h { display: flex; align-items: baseline; gap: 10px; }
+.limits-h h2 { font-size: 15px; font-weight: 650; margin: 0; }
+.limits-h .spacer { flex: 1; }
+.limits-h .upd { font-size: 12px; color: var(--faint); }
+.limits-h .link { margin-left: 0; }
+.limit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.limit { background: var(--tile); border-radius: 10px; padding: 9px 11px 10px; min-width: 0; }
+.limit-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.limit .k { font-size: 12px; color: var(--muted); }
+.limit .v { font-size: 17px; font-weight: 650; }
+.meter { height: 6px; border-radius: 3px; background: var(--track); margin: 6px 0 6px; overflow: hidden; }
+.meter > i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width 0.5s ease; }
+.limit[data-level='ok'] .meter > i { background: var(--ok); }
+.limit[data-level='warn'] .meter > i { background: var(--warn); }
+.limit[data-level='warn'] .v { color: var(--warn); }
+.limit[data-level='bad'] .meter > i { background: var(--bad); }
+.limit[data-level='bad'] .v { color: var(--bad); }
+.limit[data-level='none'] .v { color: var(--faint); }
+.limit-sub { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; color: var(--muted); }
+.limit-sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.limits .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+.limits .hint code { font-size: 11.5px; background: var(--tile); padding: 1px 5px; border-radius: 5px; }
+
 /* job bar */
 .job { padding: 12px 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .job[hidden] { display: none; }
@@ -220,6 +245,7 @@ footer code { font-size: 11.5px; }
   .job .title { max-width: none; flex: 1 1 60%; }
   .segs { order: 5; flex-basis: 100%; }
   .tile .v { font-size: 15px; }
+  .limit-grid { grid-template-columns: 1fr; }
   .row .line3 { flex-direction: column; gap: 0; }
 }
 `, js: `// Dashboard client: follows /events and keeps the page in sync with the crew.
@@ -254,6 +280,7 @@ footer code { font-size: 11.5px; }
     compact: store.get('compact', false),
     finishedOpen: store.get('finishedOpen', true),
     theme: store.get('theme', 'auto'),
+    limitsOpen: store.get('limitsOpen', true),
   }
   let snap = null
   let clockOffset = 0 // server now - local now
@@ -270,6 +297,19 @@ footer code { font-size: 11.5px; }
     const m = Math.floor((s % 3600) / 60)
     const ss = String(s % 60).padStart(2, '0')
     return h ? \`\${h}:\${String(m).padStart(2, '0')}:\${ss}\` : \`\${m}:\${ss}\`
+  }
+  const fmtDur = ms => {
+    const m = Math.max(0, Math.ceil(ms / 60000))
+    const d = Math.floor(m / 1440)
+    const h = Math.floor((m % 1440) / 60)
+    return d ? \`\${d}d \${h}h\` : h ? \`\${h}h \${m % 60}m\` : \`\${m}m\`
+  }
+  const clockAt = (t, withDay) => {
+    try {
+      return new Date(t).toLocaleString(boot.lang, withDay ? { weekday: 'short', hour: 'numeric', minute: '2-digit' } : { hour: 'numeric', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
   const modelLabel = id => {
     if (!id) return '\u2014'
@@ -568,8 +608,46 @@ footer code { font-size: 11.5px; }
     )
   }
 
+  // ------------------------------------------------------------------ limits
+  // Plan percentages come from Claude Code's status line; the totals under
+  // each meter are counted from local transcripts for the same window.
+
+  function renderLimitWindow(el, w, opts) {
+    const pct = w.usedPct
+    const level = pct === null ? 'none' : pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : 'ok'
+    el.dataset.level = level
+    el.querySelector('[data-k=pct]').textContent = pct === null ? '\u2014' : Math.round(pct) + '%'
+    el.querySelector('[data-k=fill]').style.width = (pct === null ? 0 : Math.min(100, pct)) + '%'
+    const meter = el.querySelector('[data-k=meter]')
+    if (pct === null) meter.removeAttribute('aria-valuenow')
+    else meter.setAttribute('aria-valuenow', String(Math.round(pct)))
+    el.querySelector('[data-k=reset]').textContent =
+      pct === null
+        ? opts.rolling
+        : w.resetsAt
+          ? \`\${STR.resetsIn} \${fmtDur(w.resetsAt - now())} \xB7 \${clockAt(w.resetsAt, opts.withDay)}\`
+          : STR.startsNext
+    el.querySelector('[data-k=local]').textContent =
+      \`\u2248\${fmtCost(w.costUsd)} \xB7 \${fmtTokens(w.tokens)} \${STR.tokensWord} \xB7 \${w.requests} \${STR.requests}\`
+  }
+
+  function renderLimits() {
+    const l = snap && snap.limits
+    $('#limits').hidden = !l
+    if (!l) return
+    $('#limits-body').hidden = !ui.limitsOpen
+    $('#limits-toggle').textContent = ui.limitsOpen ? STR.collapse : STR.expand
+    $('#limits-toggle').setAttribute('aria-expanded', String(ui.limitsOpen))
+    const age = l.reportedAt === null ? null : now() - l.reportedAt
+    $('#l-updated').textContent = age === null ? '' : age < 60000 ? \`\${STR.updated} \${STR.justNow}\` : \`\${STR.updated} \${fmtDur(age)} \${STR.ago}\`
+    $('#l-hint').hidden = l.reportedAt !== null
+    renderLimitWindow($('#l-5h'), l.fiveHour, { withDay: false, rolling: STR.lastHours })
+    renderLimitWindow($('#l-7d'), l.sevenDay, { withDay: true, rolling: STR.lastDays })
+  }
+
   function render() {
     if (!snap) return
+    renderLimits()
     renderJob()
     renderAgents()
     const s = snap.session
@@ -601,6 +679,11 @@ footer code { font-size: 11.5px; }
     ui.finishedOpen = !ui.finishedOpen
     store.set('finishedOpen', ui.finishedOpen)
     render()
+  })
+  $('#limits-toggle').addEventListener('click', () => {
+    ui.limitsOpen = !ui.limitsOpen
+    store.set('limitsOpen', ui.limitsOpen)
+    renderLimits()
   })
   $('#crew').addEventListener('click', () => {
     if (ui.compact) {
@@ -640,6 +723,8 @@ footer code { font-size: 11.5px; }
   setInterval(() => {
     if (snap && snap.totals.running) render()
   }, 1000)
+  // Reset countdowns move even when the crew is idle.
+  setInterval(renderLimits, 15000)
 
   applyTheme()
   document.documentElement.lang = boot.lang
@@ -18630,7 +18715,20 @@ var STRINGS = {
     theme: "Theme",
     estimate: "Costs are estimates from token counts and list prices, not your bill.",
     phase: { plan: "Plan", design: "Design", delegate: "Tasks", review: "Review", close: "Done" },
-    busy: "running"
+    busy: "running",
+    limits: "Plan limits",
+    fiveHour: "5-hour session",
+    weekly: "Weekly",
+    resetsIn: "resets in",
+    startsNext: "resets with your next message",
+    updated: "updated",
+    justNow: "just now",
+    ago: "ago",
+    requests: "requests",
+    lastHours: "last 5 hours",
+    lastDays: "last 7 days",
+    noPlan: "no plan data",
+    limitsHint: "Plan percentages come from Claude Code's status line (Claude.ai plans only). Run `luff-crew-monitor setup --statusline` to record them. Token and cost totals are counted from your local transcripts."
   },
   ru: {
     appName: "\u041A\u043E\u043C\u0430\u043D\u0434\u0430",
@@ -18658,7 +18756,20 @@ var STRINGS = {
     theme: "\u0422\u0435\u043C\u0430",
     estimate: "\u0421\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u043E\u0446\u0435\u043D\u0435\u043D\u0430 \u043F\u043E \u0442\u043E\u043A\u0435\u043D\u0430\u043C \u0438 \u043F\u0440\u0430\u0439\u0441-\u043B\u0438\u0441\u0442\u0443, \u044D\u0442\u043E \u043D\u0435 \u0441\u0447\u0451\u0442.",
     phase: { plan: "\u041F\u043B\u0430\u043D", design: "\u0414\u0438\u0437\u0430\u0439\u043D", delegate: "\u0417\u0430\u0434\u0430\u0447\u0438", review: "\u0420\u0435\u0432\u044C\u044E", close: "\u0413\u043E\u0442\u043E\u0432\u043E" },
-    busy: "\u0432 \u0440\u0430\u0431\u043E\u0442\u0435"
+    busy: "\u0432 \u0440\u0430\u0431\u043E\u0442\u0435",
+    limits: "\u041B\u0438\u043C\u0438\u0442\u044B \u043F\u043B\u0430\u043D\u0430",
+    fiveHour: "\u0421\u0435\u0441\u0441\u0438\u044F 5 \u0447\u0430\u0441\u043E\u0432",
+    weekly: "\u041D\u0435\u0434\u0435\u043B\u044F",
+    resetsIn: "\u0441\u0431\u0440\u043E\u0441 \u0447\u0435\u0440\u0435\u0437",
+    startsNext: "\u0441\u0431\u0440\u043E\u0448\u0435\u043D, \u043D\u0430\u0447\u043D\u0451\u0442\u0441\u044F \u0441\u043E \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0433\u043E \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F",
+    updated: "\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E",
+    justNow: "\u0442\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u043E",
+    ago: "\u043D\u0430\u0437\u0430\u0434",
+    requests: "\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432",
+    lastHours: "\u0437\u0430 5 \u0447\u0430\u0441\u043E\u0432",
+    lastDays: "\u0437\u0430 7 \u0434\u043D\u0435\u0439",
+    noPlan: "\u043D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u043F\u043B\u0430\u043D\u0430",
+    limitsHint: "\u041F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u043F\u043B\u0430\u043D\u0430 \u043F\u0440\u0438\u0445\u043E\u0434\u044F\u0442 \u0438\u0437 \u0441\u0442\u0430\u0442\u0443\u0441-\u0441\u0442\u0440\u043E\u043A\u0438 Claude Code (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043B\u0430\u043D\u044B Claude.ai). \u0417\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 `luff-crew-monitor setup --statusline`, \u0447\u0442\u043E\u0431\u044B \u0438\u0445 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C. \u0422\u043E\u043A\u0435\u043D\u044B \u0438 \u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0441\u0447\u0438\u0442\u0430\u044E\u0442\u0441\u044F \u043F\u043E \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u043C \u0442\u0440\u0430\u043D\u0441\u043A\u0440\u0438\u043F\u0442\u0430\u043C."
   }
 }, stringsFor = (lang2) => STRINGS[lang2];
 
@@ -18674,7 +18785,12 @@ function assets() {
     js: readFileSync2(new URL("./client.js", import.meta.url), "utf8")
   }, cached2);
 }
-var scriptJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029"), FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" shape-rendering="crispEdges"><rect x="7" y="9" width="10" height="1" fill="#5b6cf0"/><rect x="6" y="10" width="12" height="1" fill="#5b6cf0"/><rect x="5" y="11" width="14" height="6" fill="#5b6cf0"/><rect x="6" y="17" width="12" height="1" fill="#5b6cf0"/><rect x="8" y="12" width="2" height="2" fill="#fff"/><rect x="14" y="12" width="2" height="2" fill="#fff"/><rect x="6" y="5" width="12" height="3" fill="#1F2A4A"/><rect x="5" y="8" width="14" height="1" fill="#22201d"/><rect x="6" y="18" width="2" height="3" fill="#5b6cf0"/><rect x="16" y="18" width="2" height="3" fill="#5b6cf0"/></svg>';
+var escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c), withCode = (s) => escapeHtml(s).replace(/`([^`]+)`/g, "<code>$1</code>"), limitWindow = (id, label) => `
+      <div class="limit" id="${id}" data-level="none">
+        <div class="limit-top"><span class="k">${label}</span><span class="v num" data-k="pct">\u2014</span></div>
+        <div class="meter" role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" data-k="meter"><i data-k="fill"></i></div>
+        <div class="limit-sub"><span data-k="reset"></span><span class="num" data-k="local"></span></div>
+      </div>`, scriptJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029"), FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" shape-rendering="crispEdges"><rect x="7" y="9" width="10" height="1" fill="#5b6cf0"/><rect x="6" y="10" width="12" height="1" fill="#5b6cf0"/><rect x="5" y="11" width="14" height="6" fill="#5b6cf0"/><rect x="6" y="17" width="12" height="1" fill="#5b6cf0"/><rect x="8" y="12" width="2" height="2" fill="#fff"/><rect x="14" y="12" width="2" height="2" fill="#fff"/><rect x="6" y="5" width="12" height="3" fill="#1F2A4A"/><rect x="5" y="8" width="14" height="1" fill="#22201d"/><rect x="6" y="18" width="2" height="3" fill="#5b6cf0"/><rect x="16" y="18" width="2" height="3" fill="#5b6cf0"/></svg>';
 function renderPage(nonce, lang2) {
   let s = stringsFor(lang2), { css, js } = assets(), boot = { lang: lang2, strings: s, version: VERSION };
   return `<!doctype html>
@@ -18696,6 +18812,20 @@ function renderPage(nonce, lang2) {
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>
     </button>
   </div>
+
+  <section class="card limits" id="limits" aria-label="${s.limits}">
+    <div class="limits-h">
+      <h2>${s.limits}</h2>
+      <span class="upd" id="l-updated"></span>
+      <div class="spacer"></div>
+      <button class="link" id="limits-toggle" aria-controls="limits-body">${s.collapse}</button>
+    </div>
+    <div id="limits-body">
+      <div class="limit-grid">${limitWindow("l-5h", s.fiveHour)}${limitWindow("l-7d", s.weekly)}
+      </div>
+      <p class="hint" id="l-hint" hidden>${withCode(s.limitsHint)}</p>
+    </div>
+  </section>
 
   <div class="card job" id="job" hidden>
     <span class="dot"></span>
@@ -18841,90 +18971,11 @@ async function listen(server, host, first) {
   throw new Error("No free port for the dashboard");
 }
 
-// src/open.ts
+// src/limits.ts
 init_define_LUFF_CREW_ASSETS();
-import { spawn } from "node:child_process";
-function openBrowser(url) {
-  if (!/^https?:\/\//.test(url)) return !1;
-  let [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", '""', url.replace(/&/g, "^&")]] : ["xdg-open", [url]];
-  try {
-    let child = spawn(cmd, args, { stdio: "ignore", detached: !0, windowsHide: !0 });
-    return child.on("error", () => {
-    }), child.unref(), !0;
-  } catch {
-    return !1;
-  }
-}
-
-// src/tracker.ts
-init_define_LUFF_CREW_ASSETS();
-import { existsSync as existsSync2 } from "node:fs";
-import { open as open3, readdir as readdir2, readFile, stat as stat3 } from "node:fs/promises";
-import { basename as basename2, dirname, join as join3 } from "node:path";
-
-// src/flow.ts
-init_define_LUFF_CREW_ASSETS();
-
-// src/format.ts
-init_define_LUFF_CREW_ASSETS();
-var fmtTokens = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`, fmtCost = (usd) => usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`;
-function fmtTime(ms) {
-  let s = Math.max(0, Math.round(ms / 1e3)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
-var normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), clip = (s, max) => s.length > max ? s.slice(0, Math.max(1, max - 1)) + "\u2026" : s, textBar = (ratio, width, on = "\u25B0", off = "\u25B1") => {
-  let filled = Math.round(Math.max(0, Math.min(1, ratio)) * width);
-  return on.repeat(filled) + off.repeat(Math.max(0, width - filled));
-};
-
-// src/types.ts
-init_define_LUFF_CREW_ASSETS();
-var PHASES = ["plan", "design", "delegate", "review", "close"], EFFORTS = ["low", "medium", "high", "xhigh", "max"];
-
-// src/flow.ts
-var DEFAULT_TITLE = "Crew job", isPhase = (p) => typeof p == "string" && PHASES.includes(p), toCount = (n) => typeof n == "number" && Number.isFinite(n) ? Math.max(0, Math.round(n)) : void 0;
-function cleanTasks(tasks) {
-  return Array.isArray(tasks) ? tasks.filter((t) => typeof t?.title == "string" && t.title.trim()).map((t, i) => {
-    let out = {
-      title: (t.title ?? "").trim(),
-      after: [...new Set((t.after ?? []).filter((n) => Number.isInteger(n) && n > 0 && n !== i + 1))].sort((a, b) => a - b)
-    };
-    return t.agent?.trim() && (out.agent = t.agent.trim()), t.model?.trim() && (out.model = t.model.trim()), t.effort?.trim() && (out.effort = t.effort.trim().toLowerCase()), out;
-  }) : void 0;
-}
-function startsNewFlow(prev, input) {
-  if (!prev || prev.finished) return !0;
-  let title = input.title?.trim();
-  return title !== void 0 && title !== "" && title !== prev.title;
-}
-function applyProgress(prev, input, at) {
-  let base = startsNewFlow(prev, input) || !prev ? { title: DEFAULT_TITLE, total: 0, done: 0, phase: "plan", finished: !1, tasks: [], startedAt: at, updatedAt: at } : prev, tasks = cleanTasks(input.tasks) ?? base.tasks, total = toCount(input.total) ?? (input.tasks ? tasks.length : base.total), doneRaw = toCount(input.done) ?? base.done, done = input.finished ? Math.max(doneRaw, total) : total ? Math.min(total, doneRaw) : doneRaw, phase = input.finished ? "close" : isPhase(input.phase) ? input.phase : base.phase;
-  return {
-    title: input.title?.trim() || base.title,
-    total,
-    done,
-    phase,
-    finished: input.finished === !0,
-    tasks,
-    startedAt: base.startedAt,
-    updatedAt: at
-  };
-}
-function visibleRuns(flow, runs) {
-  return flow ? runs.filter((r) => r.status === "running" || (r.endedAt ?? r.lastActivityAt) >= flow.startedAt) : runs;
-}
-function pendingTasks(flow, runs) {
-  if (!flow || flow.finished) return [];
-  let started = new Set(runs.map((r) => normalize(r.description)));
-  return flow.tasks.map((t, i) => ({ ...t, n: i + 1 })).filter((t) => !started.has(normalize(t.title)));
-}
-function viewFlow(flow, runs) {
-  if (!flow) return null;
-  let running = runs.filter((r) => r.status === "running").length, ratio = flow.finished ? 1 : flow.total ? flow.done / flow.total : 0, shownPhase = flow.phase === "plan" && running > 0 ? "delegate" : flow.phase, segments = [], total = flow.finished ? Math.max(flow.total, 1) : flow.total, byTitle = new Map(runs.map((r) => [normalize(r.description), r])), inFlight = flow.tasks.length ? flow.tasks.filter((t) => byTitle.get(normalize(t.title))?.status === "running").length : running;
-  for (let i = 0; i < total; i++)
-    flow.finished || i < flow.done ? segments.push("done") : i < flow.done + inFlight ? segments.push("running") : segments.push("todo");
-  return { ...flow, ratio, running, shownPhase, segments };
-}
+import { mkdirSync, readFileSync as readFileSync3, renameSync, statSync, writeFileSync } from "node:fs";
+import { readdir as readdir2, stat as stat3 } from "node:fs/promises";
+import { join as join3 } from "node:path";
 
 // src/transcript.ts
 init_define_LUFF_CREW_ASSETS();
@@ -18997,6 +19048,230 @@ function textOf(value, depth = 0) {
   return typeof value == "string" ? value : depth > 6 || !value || typeof value != "object" ? "" : Array.isArray(value) ? value.map((v) => textOf(v, depth + 1)).join(`
 `) : Object.values(value).map((v) => textOf(v, depth + 1)).join(`
 `);
+}
+
+// src/limits.ts
+var FIVE_HOURS_MS = 5 * 36e5, SEVEN_DAYS_MS = 7 * 864e5, limitsPath = () => join3(appDir(), "limits.json");
+function planWindow(raw) {
+  let pct = Number(raw?.used_percentage), resets = Number(raw?.resets_at);
+  if (!(!raw || !Number.isFinite(pct) || !Number.isFinite(resets) || resets <= 0))
+    return { usedPct: Math.max(0, pct), resetsAt: resets > 1e12 ? resets : resets * 1e3 };
+}
+function parseRateLimits(raw, now = Date.now()) {
+  if (!raw || typeof raw != "object") return null;
+  let r = raw, fiveHour = planWindow(r.five_hour), sevenDay = planWindow(r.seven_day);
+  return !fiveHour && !sevenDay ? null : { reportedAt: now, ...fiveHour ? { fiveHour } : {}, ...sevenDay ? { sevenDay } : {} };
+}
+var REWRITE_MS = 6e4;
+function savePlanLimits(raw, now = Date.now()) {
+  let next = parseRateLimits(raw, now);
+  if (!next) return !1;
+  try {
+    let prev = readPlanLimitsFile(), same = (a, b) => a?.usedPct === b?.usedPct && a?.resetsAt === b?.resetsAt;
+    if (prev && same(prev.fiveHour, next.fiveHour) && same(prev.sevenDay, next.sevenDay) && now - prev.reportedAt < REWRITE_MS) return !1;
+    mkdirSync(appDir(), { recursive: !0 });
+    let tmp = `${limitsPath()}.${process.pid}.tmp`;
+    return writeFileSync(tmp, JSON.stringify(next) + `
+`), renameSync(tmp, limitsPath()), !0;
+  } catch {
+    return !1;
+  }
+}
+function readPlanLimitsFile() {
+  try {
+    let v = JSON.parse(readFileSync3(limitsPath(), "utf8"));
+    return v && typeof v.reportedAt == "number" ? v : null;
+  } catch {
+    return null;
+  }
+}
+var cache = null;
+function readPlanLimits() {
+  let mtimeMs;
+  try {
+    mtimeMs = statSync(limitsPath()).mtimeMs;
+  } catch {
+    return cache = null, null;
+  }
+  return cache?.mtimeMs !== mtimeMs && (cache = { mtimeMs, value: readPlanLimitsFile() }), cache.value;
+}
+var SESSION_FILE = /\.jsonl$/i, RESCAN_MS = 1e4, UsageScanner = class {
+  now;
+  root;
+  tails = /* @__PURE__ */ new Map();
+  /** Keyed by message id: streamed blocks of one reply repeat it, the last one has the final counts. */
+  requests = /* @__PURE__ */ new Map();
+  lastScan = 0;
+  scanning = null;
+  constructor(opts = {}) {
+    this.now = opts.now ?? Date.now, this.root = opts.root ?? projectsDir;
+  }
+  /** Reads what the transcripts gained. Throttled unless `force`. True when totals changed. */
+  poll(force = !1) {
+    return !force && this.now() - this.lastScan < RESCAN_MS ? Promise.resolve(!1) : (this.scanning ??= this.scan().finally(() => {
+      this.scanning = null;
+    }), this.scanning);
+  }
+  async scan() {
+    let now = this.now();
+    this.lastScan = now;
+    let cutoff = now - SEVEN_DAYS_MS, changed = !1;
+    for (let path of await this.files(cutoff)) {
+      let tail = this.tails.get(path);
+      tail || (tail = new JsonlTail(path, (raw) => raw.includes('"usage"')), this.tails.set(path, tail));
+      let { lines, reset } = await tail.read();
+      reset && (changed = !0);
+      for (let line of lines) {
+        let msg = line.message;
+        if (line.type !== "assistant" || !msg?.usage || !msg.model || msg.model === "<synthetic>") continue;
+        let at = timeOf(line, now);
+        if (at < cutoff) continue;
+        let usage = msg.usage, key = msg.id ?? line.uuid ?? `${path}:${at}`;
+        this.requests.set(key, { at, tokens: tokensOf(usage), costUsd: costOf(msg.model, usage) }), changed = !0;
+      }
+    }
+    for (let [key, r] of this.requests) r.at < cutoff && this.requests.delete(key);
+    return changed;
+  }
+  /** Transcripts (sessions and their subagents) written to since `cutoff`. */
+  async files(cutoff) {
+    let out = [], consider = async (path) => {
+      try {
+        (await stat3(path)).mtimeMs >= cutoff ? out.push(path) : this.tails.delete(path);
+      } catch {
+        this.tails.delete(path);
+      }
+    }, list = async (dir) => {
+      try {
+        return await readdir2(dir);
+      } catch {
+        return [];
+      }
+    };
+    for (let project of await list(this.root())) {
+      let pdir = join3(this.root(), project);
+      for (let name of await list(pdir)) {
+        let path = join3(pdir, name);
+        if (SESSION_FILE.test(name)) await consider(path);
+        else {
+          let sub = join3(path, "subagents");
+          for (let agent of await list(sub)) SESSION_FILE.test(agent) && await consider(join3(sub, agent));
+        }
+      }
+    }
+    return out;
+  }
+  totals(since) {
+    let tokens = 0, costUsd = 0, requests = 0;
+    for (let r of this.requests.values())
+      r.at < since || (tokens += r.tokens, costUsd += r.costUsd, requests++);
+    return { tokens, costUsd, requests };
+  }
+};
+function limitsView(plan, usage, now) {
+  let view = (w, span) => {
+    let live = w && w.resetsAt > now ? w : void 0, since = live ? live.resetsAt - span : now - span;
+    return {
+      usedPct: live ? live.usedPct : w ? 0 : null,
+      resetsAt: live ? live.resetsAt : null,
+      since,
+      ...usage.totals(since)
+    };
+  };
+  return {
+    fiveHour: view(plan?.fiveHour, FIVE_HOURS_MS),
+    sevenDay: view(plan?.sevenDay, SEVEN_DAYS_MS),
+    reportedAt: plan?.reportedAt ?? null
+  };
+}
+
+// src/open.ts
+init_define_LUFF_CREW_ASSETS();
+import { spawn } from "node:child_process";
+function openBrowser(url) {
+  if (!/^https?:\/\//.test(url)) return !1;
+  let [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", '""', url.replace(/&/g, "^&")]] : ["xdg-open", [url]];
+  try {
+    let child = spawn(cmd, args, { stdio: "ignore", detached: !0, windowsHide: !0 });
+    return child.on("error", () => {
+    }), child.unref(), !0;
+  } catch {
+    return !1;
+  }
+}
+
+// src/tracker.ts
+init_define_LUFF_CREW_ASSETS();
+import { existsSync as existsSync2 } from "node:fs";
+import { open as open3, readdir as readdir3, readFile, stat as stat4 } from "node:fs/promises";
+import { basename as basename2, dirname, join as join4 } from "node:path";
+
+// src/flow.ts
+init_define_LUFF_CREW_ASSETS();
+
+// src/format.ts
+init_define_LUFF_CREW_ASSETS();
+var fmtTokens = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${Math.max(0, Math.round(n))}`, fmtCost = (usd) => usd >= 100 ? `$${Math.round(usd)}` : usd >= 10 ? `$${usd.toFixed(1)}` : `$${usd.toFixed(2)}`;
+function fmtTime(ms) {
+  let s = Math.max(0, Math.round(ms / 1e3)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+function fmtDuration(ms) {
+  let m = Math.max(0, Math.ceil(ms / 6e4)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m % 60}m` : `${m}m`;
+}
+var normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), clip = (s, max) => s.length > max ? s.slice(0, Math.max(1, max - 1)) + "\u2026" : s, textBar = (ratio, width, on = "\u25B0", off = "\u25B1") => {
+  let filled = Math.round(Math.max(0, Math.min(1, ratio)) * width);
+  return on.repeat(filled) + off.repeat(Math.max(0, width - filled));
+};
+
+// src/types.ts
+init_define_LUFF_CREW_ASSETS();
+var PHASES = ["plan", "design", "delegate", "review", "close"], EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+
+// src/flow.ts
+var DEFAULT_TITLE = "Crew job", isPhase = (p) => typeof p == "string" && PHASES.includes(p), toCount = (n) => typeof n == "number" && Number.isFinite(n) ? Math.max(0, Math.round(n)) : void 0;
+function cleanTasks(tasks) {
+  return Array.isArray(tasks) ? tasks.filter((t) => typeof t?.title == "string" && t.title.trim()).map((t, i) => {
+    let out = {
+      title: (t.title ?? "").trim(),
+      after: [...new Set((t.after ?? []).filter((n) => Number.isInteger(n) && n > 0 && n !== i + 1))].sort((a, b) => a - b)
+    };
+    return t.agent?.trim() && (out.agent = t.agent.trim()), t.model?.trim() && (out.model = t.model.trim()), t.effort?.trim() && (out.effort = t.effort.trim().toLowerCase()), out;
+  }) : void 0;
+}
+function startsNewFlow(prev, input) {
+  if (!prev || prev.finished) return !0;
+  let title = input.title?.trim();
+  return title !== void 0 && title !== "" && title !== prev.title;
+}
+function applyProgress(prev, input, at) {
+  let base = startsNewFlow(prev, input) || !prev ? { title: DEFAULT_TITLE, total: 0, done: 0, phase: "plan", finished: !1, tasks: [], startedAt: at, updatedAt: at } : prev, tasks = cleanTasks(input.tasks) ?? base.tasks, total = toCount(input.total) ?? (input.tasks ? tasks.length : base.total), doneRaw = toCount(input.done) ?? base.done, done = input.finished ? Math.max(doneRaw, total) : total ? Math.min(total, doneRaw) : doneRaw, phase = input.finished ? "close" : isPhase(input.phase) ? input.phase : base.phase;
+  return {
+    title: input.title?.trim() || base.title,
+    total,
+    done,
+    phase,
+    finished: input.finished === !0,
+    tasks,
+    startedAt: base.startedAt,
+    updatedAt: at
+  };
+}
+function visibleRuns(flow, runs) {
+  return flow ? runs.filter((r) => r.status === "running" || (r.endedAt ?? r.lastActivityAt) >= flow.startedAt) : runs;
+}
+function pendingTasks(flow, runs) {
+  if (!flow || flow.finished) return [];
+  let started = new Set(runs.map((r) => normalize(r.description)));
+  return flow.tasks.map((t, i) => ({ ...t, n: i + 1 })).filter((t) => !started.has(normalize(t.title)));
+}
+function viewFlow(flow, runs) {
+  if (!flow) return null;
+  let running = runs.filter((r) => r.status === "running").length, ratio = flow.finished ? 1 : flow.total ? flow.done / flow.total : 0, shownPhase = flow.phase === "plan" && running > 0 ? "delegate" : flow.phase, segments = [], total = flow.finished ? Math.max(flow.total, 1) : flow.total, byTitle = new Map(runs.map((r) => [normalize(r.description), r])), inFlight = flow.tasks.length ? flow.tasks.filter((t) => byTitle.get(normalize(t.title))?.status === "running").length : running;
+  for (let i = 0; i < total; i++)
+    flow.finished || i < flow.done ? segments.push("done") : i < flow.done + inFlight ? segments.push("running") : segments.push("todo");
+  return { ...flow, ratio, running, shownPhase, segments };
 }
 
 // src/tracker.ts
@@ -19095,7 +19370,7 @@ var CrewTracker = class {
     let f = this.follow;
     if (f.kind === "transcript") {
       if (this.session || !existsSync2(f.path)) return !1;
-      let s = await stat3(f.path);
+      let s = await stat4(f.path);
       return this.switchTo({ id: basename2(f.path, ".jsonl"), path: f.path, projectDir: dirname(f.path), mtimeMs: s.mtimeMs, birthtimeMs: s.birthtimeMs }), !0;
     }
     if (this.session && this.polls % 3 !== 1) return !1;
@@ -19183,7 +19458,7 @@ var CrewTracker = class {
     if (!this.session) return !1;
     let dir = subagentsDir(this.session.projectDir, this.session.id), names = [];
     try {
-      names = await readdir2(dir);
+      names = await readdir3(dir);
     } catch {
       return !1;
     }
@@ -19192,7 +19467,7 @@ var CrewTracker = class {
       let m = /^agent-(.+)\.jsonl$/.exec(name);
       if (!m?.[1]) continue;
       let a = this.agentState(m[1]);
-      a.tail ??= new JsonlTail(join3(dir, name)), !a.meta && a.metaChecked < 5 && (a.metaChecked++, a.meta = await readMeta(join3(dir, `agent-${m[1]}.meta.json`)), a.meta && (changed = !0));
+      a.tail ??= new JsonlTail(join4(dir, name)), !a.meta && a.metaChecked < 5 && (a.metaChecked++, a.meta = await readMeta(join4(dir, `agent-${m[1]}.meta.json`)), a.meta && (changed = !0));
       let { lines, reset } = await a.tail.read();
       reset && (a.requests.clear(), a.step = void 0);
       for (let line of lines) this.onAgentLine(a, line);
@@ -19335,6 +19610,7 @@ async function containsProgressCall(path, want) {
 // src/monitor.ts
 var TICK_MS = 1e3, Monitor = class {
   tracker;
+  usage = new UsageScanner();
   cfg;
   lang;
   dashboard = null;
@@ -19353,10 +19629,11 @@ var TICK_MS = 1e3, Monitor = class {
     }), this.polling;
   }
   snapshot() {
-    return this.tracker.snapshot(this.lang);
+    let snap = this.tracker.snapshot(this.lang);
+    return { ...snap, limits: limitsView(readPlanLimits(), this.usage, snap.now) };
   }
   async refresh() {
-    return await this.poll(), this.snapshot();
+    return await Promise.all([this.poll(), this.usage.poll(!0)]), this.snapshot();
   }
   get dashboardUrl() {
     return this.dashboard?.url ?? null;
@@ -19369,7 +19646,7 @@ var TICK_MS = 1e3, Monitor = class {
   async tick() {
     if (!(!((this.dashboard?.clients() ?? 0) > 0) && !this.alwaysPoll))
       try {
-        await this.poll(), this.dashboard?.push();
+        await Promise.all([this.poll(), this.usage.poll()]), this.dashboard?.push();
       } catch (err) {
         process.stderr.write(`[luff-crew] poll failed: ${err.message}
 `);
@@ -19419,8 +19696,20 @@ function runLine(a, snap) {
   return `  ${GLYPH[a.status]} ${clip(a.description, 60)}  [${a.type} \xB7 ${model}${extra.length ? " \xB7 " + extra.join(" \xB7 ") : ""}]${steps}
       ${stats}`;
 }
+function limitLine(label, w, snap) {
+  let s = stringsFor(snap.lang), plan = w.usedPct === null ? s.noPlan : `${textBar(w.usedPct / 100, 10)} ${Math.round(w.usedPct)}%${w.resetsAt ? ` \xB7 ${s.resetsIn} ${fmtDuration(w.resetsAt - snap.now)}` : ` \xB7 ${s.startsNext}`}`;
+  return `  ${label.padEnd(16)} ${plan} \xB7 \u2248${fmtCost(w.costUsd)} \xB7 ${fmtTokens(w.tokens)} ${s.tokensWord}`;
+}
+function renderLimits(snap) {
+  let l = snap.limits;
+  if (!l) return [];
+  let s = stringsFor(snap.lang);
+  return [`${s.limits}`, limitLine(s.fiveHour, l.fiveHour, snap), limitLine(s.weekly, l.sevenDay, snap)];
+}
 function renderStatus(snap, dashboardUrl) {
-  let s = stringsFor(snap.lang), out = [], f = snap.flow;
+  let s = stringsFor(snap.lang), out = [], limits = renderLimits(snap);
+  limits.length && out.push(...limits, "");
+  let f = snap.flow;
   f && out.push(`${f.title}  ${textBar(f.ratio, 16)}  ${flowLabel(f, snap.lang)}  ${Math.round(f.ratio * 100)}%`);
   let t = snap.totals;
   out.push(`${s.cost} \u2248${fmtCost(t.costUsd)} \xB7 ${s.tokens} ${fmtTokens(t.tokens)} \xB7 ${s.time} ${fmtTime(t.timeMs)}`);
@@ -19549,8 +19838,8 @@ async function runMcpServer() {
 // src/setup.ts
 init_define_LUFF_CREW_ASSETS();
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync as existsSync3, mkdirSync, readFileSync as readFileSync3, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { join as join4, resolve } from "node:path";
+import { copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync2, readFileSync as readFileSync4, realpathSync, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join5, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 var MARKER = "<!-- luff-crew-monitor -->", SLASH_COMMAND = `---
 description: Open the live agents dashboard (running, finished and planned subagents with cost and time)
@@ -19558,7 +19847,7 @@ description: Open the live agents dashboard (running, finished and planned subag
 ${MARKER}
 Call the \`open_dashboard\` tool of the luff-crew MCP server, then \`crew_status\`.
 Reply with the dashboard URL and a two-line summary of the crew: how many are running and finished, and the estimated cost so far. Do nothing else.
-`, STATUSLINE_TAG = "luff-crew-monitor statusline", log = (msg) => {
+`, STATUSLINE_RE = /luff-crew[^\s'"]*['"]?\s+statusline\b/, isOurStatusline = (command) => !!(command && STATUSLINE_RE.test(command)), log = (msg) => {
   process.stdout.write(msg + `
 `);
 }, quote = (s) => /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`, NPX_SPEC = "github:tanwar-harsh/luff-crew-monitor";
@@ -19573,7 +19862,7 @@ function claude(args) {
 var hasClaudeCli = () => claude(["--version"]).ok;
 function readSettings(path) {
   try {
-    return JSON.parse(readFileSync3(path, "utf8"));
+    return JSON.parse(readFileSync4(path, "utf8"));
   } catch {
     return {};
   }
@@ -19601,15 +19890,15 @@ ${r.out}`), 1;
     log("! The `claude` CLI was not found on PATH. Add this to your MCP config by hand:\n"), log(JSON.stringify({ mcpServers: { [opts.name]: { command: cmd[0], args: cmd.slice(1) } } }, null, 2) + `
 `);
   if (opts.slashCommand) {
-    let dir = join4(claudeDir(), "commands"), file = join4(dir, "agents-info.md"), existing = existsSync3(file) ? readFileSync3(file, "utf8") : null;
-    existing !== null && !existing.includes(MARKER) ? log(`! ${file} exists and is not ours: left as is.`) : opts.dryRun ? log(`would write ${file}`) : (mkdirSync(dir, { recursive: !0 }), writeFileSync(file, SLASH_COMMAND), log(`\u2713 Added the /agents-info command (${file}).`));
+    let dir = join5(claudeDir(), "commands"), file = join5(dir, "agents-info.md"), existing = existsSync3(file) ? readFileSync4(file, "utf8") : null;
+    existing !== null && !existing.includes(MARKER) ? log(`! ${file} exists and is not ours: left as is.`) : opts.dryRun ? log(`would write ${file}`) : (mkdirSync2(dir, { recursive: !0 }), writeFileSync2(file, SLASH_COMMAND), log(`\u2713 Added the /agents-info command (${file}).`));
   }
   if (opts.statusline) {
-    let path = join4(claudeDir(), "settings.json"), settings = readSettings(path), current = settings.statusLine, self = cmd.map(quote).join(" ");
-    if (current?.command?.includes(STATUSLINE_TAG)) log("\u2713 The status line already includes Luff Crew.");
+    let path = join5(claudeDir(), "settings.json"), settings = readSettings(path), current = settings.statusLine, self = cmd.map(quote).join(" ");
+    if (isOurStatusline(current?.command)) log("\u2713 The status line already includes Luff Crew.");
     else {
       let command = current?.command ? `${self} statusline --wrap ${quote(current.command)}` : `${self} statusline`;
-      opts.dryRun ? log(`would set statusLine.command to: ${command}`) : (existsSync3(path) && copyFileSync(path, `${path}.luff-crew.bak`), settings.statusLine = { ...current ?? {}, type: "command", command }, writeFileSync(path, JSON.stringify(settings, null, 2) + `
+      opts.dryRun ? log(`would set statusLine.command to: ${command}`) : (existsSync3(path) && copyFileSync(path, `${path}.luff-crew.bak`), settings.statusLine = { ...current ?? {}, type: "command", command }, writeFileSync2(path, JSON.stringify(settings, null, 2) + `
 `), log(`\u2713 Status line set${current?.command ? " (your previous one still runs first)" : ""}. Backup: ${path}.luff-crew.bak`));
     }
   }
@@ -19624,12 +19913,12 @@ function uninstall(opts) {
     let r = claude(["mcp", "remove", opts.name, "--scope", opts.scope]);
     log(r.ok ? `\u2713 Removed MCP server "${opts.name}".` : `- MCP server "${opts.name}" was not registered in ${opts.scope} scope.`);
   }
-  let file = join4(claudeDir(), "commands", "agents-info.md");
-  existsSync3(file) && readFileSync3(file, "utf8").includes(MARKER) && (rmSync(file), log("\u2713 Removed the /agents-info command."));
-  let path = join4(claudeDir(), "settings.json"), settings = readSettings(path), line = settings.statusLine;
-  if (line?.command?.includes(STATUSLINE_TAG)) {
+  let file = join5(claudeDir(), "commands", "agents-info.md");
+  existsSync3(file) && readFileSync4(file, "utf8").includes(MARKER) && (rmSync(file), log("\u2713 Removed the /agents-info command."));
+  let path = join5(claudeDir(), "settings.json"), settings = readSettings(path), line = settings.statusLine;
+  if (line?.command && isOurStatusline(line.command)) {
     let wrapped = /--wrap\s+('(?:[^']|'\\'')*'|\S+)\s*$/.exec(line.command)?.[1];
-    wrapped ? settings.statusLine = { ...line, command: wrapped.startsWith("'") ? wrapped.slice(1, -1).replace(/'\\''/g, "'") : wrapped } : delete settings.statusLine, writeFileSync(path, JSON.stringify(settings, null, 2) + `
+    wrapped ? settings.statusLine = { ...line, command: wrapped.startsWith("'") ? wrapped.slice(1, -1).replace(/'\\''/g, "'") : wrapped } : delete settings.statusLine, writeFileSync2(path, JSON.stringify(settings, null, 2) + `
 `), log(wrapped ? "\u2713 Restored your previous status line." : "\u2713 Removed the Luff Crew status line.");
   }
   return 0;
@@ -19643,12 +19932,17 @@ async function doctor() {
   cli.ok ? ok(`Claude Code ${cli.out.split(`
 `)[0]}`) : bad("`claude` CLI not found on PATH (the dashboard still works; setup must be done by hand)"), cli.ok && (claude(["mcp", "get", SERVER_NAME]).ok ? ok(`MCP server "${SERVER_NAME}" is registered`) : log(`- MCP server "${SERVER_NAME}" is not registered via \`claude mcp\` (fine if you installed the plugin). Run: luff-crew-monitor setup`));
   let dir = claudeDir();
-  existsSync3(join4(dir, "projects")) ? ok(`Transcripts folder: ${join4(dir, "projects")}`) : bad(`No transcripts folder at ${join4(dir, "projects")}: has Claude Code run on this machine?`);
+  existsSync3(join5(dir, "projects")) ? ok(`Transcripts folder: ${join5(dir, "projects")}`) : bad(`No transcripts folder at ${join5(dir, "projects")}: has Claude Code run on this machine?`);
   let project = await findProjectDir(process.cwd());
   if (project) {
     let sessions = await listSessions(project);
     ok(`This folder has ${sessions.length} Claude Code session(s)${sessions[0] ? `, latest ${sessions[0].id.slice(0, 8)}` : ""}`);
   } else log(`- No Claude Code sessions for ${process.cwd()} yet (normal before the first run here).`);
+  let settings = readSettings(join5(dir, "settings.json"));
+  if (isOurStatusline(settings.statusLine?.command)) {
+    let limits = readPlanLimits();
+    ok(limits ? `Plan limits (5-hour / weekly) last reported ${fmtDuration(Date.now() - limits.reportedAt)} ago` : "Status line records plan limits (none reported yet: Claude.ai plans only, after the first reply)");
+  } else log("- Plan limit % (5-hour / weekly) needs the status line. Run: luff-crew-monitor setup --statusline");
   let cfg = loadConfig();
   return ok(`Config: ${existsSync3(configPath()) ? configPath() : "defaults"} (port ${cfg.port}, language ${cfg.language}, autoOpen ${cfg.autoOpen})`), log(problems ? `
 ${problems} problem(s) found.` : `
@@ -19683,7 +19977,7 @@ async function runStatusline(opts) {
   let raw = await readStdin(1500), wrapped = opts.wrap ? runWrapped(opts.wrap, raw) : Promise.resolve(""), ours = "";
   try {
     let input = raw ? JSON.parse(raw) : {};
-    if (input.transcript_path) {
+    if (input.rate_limits && savePlanLimits(input.rate_limits), input.transcript_path) {
       let cfg = loadConfig(), tracker = new CrewTracker({ follow: { kind: "transcript", path: input.transcript_path }, stallMs: cfg.stallMinutes * 6e4 });
       await tracker.poll(), ours = renderStatusline(tracker.snapshot(resolveLang(cfg)), { color: opts.color });
     }
@@ -19702,7 +19996,7 @@ Usage
   luff-crew-monitor                 Run as an MCP server over stdio (how Claude Code starts it)
   luff-crew-monitor setup           Register with Claude Code and add the /agents-info command
       --scope user|project|local      Where to register (default: user)
-      --statusline                    Also add the job bar to Claude Code's status line
+      --statusline                    Also add the job bar to Claude Code's status line and record plan limits
       --force                         Replace an existing registration
       --dry-run                       Show what would change
   luff-crew-monitor dashboard       Open the dashboard without Claude (follows the latest session)

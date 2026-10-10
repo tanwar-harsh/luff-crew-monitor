@@ -30,6 +30,7 @@
     compact: store.get('compact', false),
     finishedOpen: store.get('finishedOpen', true),
     theme: store.get('theme', 'auto'),
+    limitsOpen: store.get('limitsOpen', true),
   }
   let snap = null
   let clockOffset = 0 // server now - local now
@@ -46,6 +47,19 @@
     const m = Math.floor((s % 3600) / 60)
     const ss = String(s % 60).padStart(2, '0')
     return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+  }
+  const fmtDur = ms => {
+    const m = Math.max(0, Math.ceil(ms / 60000))
+    const d = Math.floor(m / 1440)
+    const h = Math.floor((m % 1440) / 60)
+    return d ? `${d}d ${h}h` : h ? `${h}h ${m % 60}m` : `${m}m`
+  }
+  const clockAt = (t, withDay) => {
+    try {
+      return new Date(t).toLocaleString(boot.lang, withDay ? { weekday: 'short', hour: 'numeric', minute: '2-digit' } : { hour: 'numeric', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
   const modelLabel = id => {
     if (!id) return '—'
@@ -344,8 +358,46 @@
     )
   }
 
+  // ------------------------------------------------------------------ limits
+  // Plan percentages come from Claude Code's status line; the totals under
+  // each meter are counted from local transcripts for the same window.
+
+  function renderLimitWindow(el, w, opts) {
+    const pct = w.usedPct
+    const level = pct === null ? 'none' : pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : 'ok'
+    el.dataset.level = level
+    el.querySelector('[data-k=pct]').textContent = pct === null ? '—' : Math.round(pct) + '%'
+    el.querySelector('[data-k=fill]').style.width = (pct === null ? 0 : Math.min(100, pct)) + '%'
+    const meter = el.querySelector('[data-k=meter]')
+    if (pct === null) meter.removeAttribute('aria-valuenow')
+    else meter.setAttribute('aria-valuenow', String(Math.round(pct)))
+    el.querySelector('[data-k=reset]').textContent =
+      pct === null
+        ? opts.rolling
+        : w.resetsAt
+          ? `${STR.resetsIn} ${fmtDur(w.resetsAt - now())} · ${clockAt(w.resetsAt, opts.withDay)}`
+          : STR.startsNext
+    el.querySelector('[data-k=local]').textContent =
+      `≈${fmtCost(w.costUsd)} · ${fmtTokens(w.tokens)} ${STR.tokensWord} · ${w.requests} ${STR.requests}`
+  }
+
+  function renderLimits() {
+    const l = snap && snap.limits
+    $('#limits').hidden = !l
+    if (!l) return
+    $('#limits-body').hidden = !ui.limitsOpen
+    $('#limits-toggle').textContent = ui.limitsOpen ? STR.collapse : STR.expand
+    $('#limits-toggle').setAttribute('aria-expanded', String(ui.limitsOpen))
+    const age = l.reportedAt === null ? null : now() - l.reportedAt
+    $('#l-updated').textContent = age === null ? '' : age < 60000 ? `${STR.updated} ${STR.justNow}` : `${STR.updated} ${fmtDur(age)} ${STR.ago}`
+    $('#l-hint').hidden = l.reportedAt !== null
+    renderLimitWindow($('#l-5h'), l.fiveHour, { withDay: false, rolling: STR.lastHours })
+    renderLimitWindow($('#l-7d'), l.sevenDay, { withDay: true, rolling: STR.lastDays })
+  }
+
   function render() {
     if (!snap) return
+    renderLimits()
     renderJob()
     renderAgents()
     const s = snap.session
@@ -377,6 +429,11 @@
     ui.finishedOpen = !ui.finishedOpen
     store.set('finishedOpen', ui.finishedOpen)
     render()
+  })
+  $('#limits-toggle').addEventListener('click', () => {
+    ui.limitsOpen = !ui.limitsOpen
+    store.set('limitsOpen', ui.limitsOpen)
+    renderLimits()
   })
   $('#crew').addEventListener('click', () => {
     if (ui.compact) {
@@ -416,6 +473,8 @@
   setInterval(() => {
     if (snap && snap.totals.running) render()
   }, 1000)
+  // Reset countdowns move even when the crew is idle.
+  setInterval(renderLimits, 15000)
 
   applyTheme()
   document.documentElement.lang = boot.lang

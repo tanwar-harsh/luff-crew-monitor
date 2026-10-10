@@ -117,6 +117,27 @@ export interface SessionInfo {
   transcript: string
 }
 
+/** One plan usage window (5-hour session or weekly) on the limits panel. */
+export interface LimitWindowView {
+  /** Share of the plan limit used, 0..100, as Claude Code reports it; null when it has not. */
+  usedPct: number | null
+  /** Epoch ms when the window resets; null when unknown. */
+  resetsAt: number | null
+  /** Epoch ms the local totals below are counted from. */
+  since: number
+  /** Tokens, estimated cost and model requests in local transcripts since `since`. */
+  tokens: number
+  costUsd: number
+  requests: number
+}
+
+export interface LimitsView {
+  fiveHour: LimitWindowView
+  sevenDay: LimitWindowView
+  /** Epoch ms Claude Code last reported plan limits through the status line; null when never. */
+  reportedAt: number | null
+}
+
 /** Everything a view (dashboard, statusline, tool reply) needs, at one instant. */
 export interface Snapshot {
   version: string
@@ -127,4 +148,6 @@ export interface Snapshot {
   agents: AgentRun[]
   planned: PlannedView[]
   totals: Totals
+  /** Plan usage limits; only views that poll local usage fill it in. */
+  limits?: LimitsView
 }

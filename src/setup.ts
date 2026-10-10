@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { configPath, DEFAULTS, loadConfig } from './config.ts'
+import { fmtDuration } from './format.ts'
+import { readPlanLimits } from './limits.ts'
 import { SERVER_NAME } from './mcp.ts'
 import { claudeDir, findProjectDir, listSessions } from './paths.ts'
 import { VERSION } from './version.ts'
@@ -18,7 +20,10 @@ Call the \`open_dashboard\` tool of the luff-crew MCP server, then \`crew_status
 Reply with the dashboard URL and a two-line summary of the crew: how many are running and finished, and the estimated cost so far. Do nothing else.
 `
 
-const STATUSLINE_TAG = 'luff-crew-monitor statusline'
+/** Matches our status line however it was launched: `luff-crew-monitor`, `.../luff-crew.mjs` or npx. */
+const STATUSLINE_RE = /luff-crew[^\s'"]*['"]?\s+statusline\b/
+
+export const isOurStatusline = (command: string | undefined): boolean => Boolean(command && STATUSLINE_RE.test(command))
 
 export interface SetupOptions {
   scope: 'user' | 'project' | 'local'
@@ -111,7 +116,7 @@ export function setup(opts: SetupOptions): number {
     const settings = readSettings(path)
     const current = settings.statusLine as { type?: string; command?: string } | undefined
     const self = cmd.map(quote).join(' ')
-    if (current?.command?.includes(STATUSLINE_TAG)) log('✓ The status line already includes Luff Crew.')
+    if (isOurStatusline(current?.command)) log('✓ The status line already includes Luff Crew.')
     else {
       const command = current?.command ? `${self} statusline --wrap ${quote(current.command)}` : `${self} statusline`
       if (opts.dryRun) log(`would set statusLine.command to: ${command}`)
@@ -145,7 +150,7 @@ export function uninstall(opts: { scope: SetupOptions['scope']; name: string }):
   const path = join(claudeDir(), 'settings.json')
   const settings = readSettings(path)
   const line = settings.statusLine as { command?: string } | undefined
-  if (line?.command?.includes(STATUSLINE_TAG)) {
+  if (line?.command && isOurStatusline(line.command)) {
     const wrapped = /--wrap\s+('(?:[^']|'\\'')*'|\S+)\s*$/.exec(line.command)?.[1]
     if (wrapped) settings.statusLine = { ...line, command: wrapped.startsWith("'") ? wrapped.slice(1, -1).replace(/'\\''/g, "'") : wrapped }
     else delete settings.statusLine
@@ -185,6 +190,13 @@ export async function doctor(): Promise<number> {
     const sessions = await listSessions(project)
     ok(`This folder has ${sessions.length} Claude Code session(s)${sessions[0] ? `, latest ${sessions[0].id.slice(0, 8)}` : ''}`)
   } else log(`- No Claude Code sessions for ${process.cwd()} yet (normal before the first run here).`)
+
+  const settings = readSettings(join(dir, 'settings.json'))
+  if (isOurStatusline((settings.statusLine as { command?: string } | undefined)?.command)) {
+    const limits = readPlanLimits()
+    if (limits) ok(`Plan limits (5-hour / weekly) last reported ${fmtDuration(Date.now() - limits.reportedAt)} ago`)
+    else ok('Status line records plan limits (none reported yet: Claude.ai plans only, after the first reply)')
+  } else log('- Plan limit % (5-hour / weekly) needs the status line. Run: luff-crew-monitor setup --statusline')
 
   const cfg = loadConfig()
   ok(`Config: ${existsSync(configPath()) ? configPath() : 'defaults'} (port ${cfg.port}, language ${cfg.language}, autoOpen ${cfg.autoOpen})`)

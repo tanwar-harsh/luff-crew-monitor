@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 
 import { loadConfig, resolveLang } from './config.ts'
+import { savePlanLimits } from './limits.ts'
 import { renderStatusline } from './render-text.ts'
 import { CrewTracker } from './tracker.ts'
 
@@ -8,6 +9,8 @@ interface StatusInput {
   session_id?: string
   transcript_path?: string
   cwd?: string
+  /** Claude.ai plan usage: 5-hour and weekly windows. */
+  rate_limits?: unknown
 }
 
 async function readStdin(timeoutMs: number): Promise<string> {
@@ -51,7 +54,7 @@ function runWrapped(command: string, input: string): Promise<string> {
 
 /**
  * Claude Code's status line hook: prints the job bar and crew totals for the
- * session it is given. With `--wrap`, an existing status line keeps working
+ * session it is given, and records the plan's 5-hour and weekly usage. With `--wrap`, an existing status line keeps working
  * and this segment is appended to it.
  */
 export async function runStatusline(opts: { wrap?: string; color: boolean }): Promise<void> {
@@ -61,6 +64,8 @@ export async function runStatusline(opts: { wrap?: string; color: boolean }): Pr
   let ours = ''
   try {
     const input = (raw ? JSON.parse(raw) : {}) as StatusInput
+    // Only the status line sees plan limits: keep them for the dashboard's limits panel.
+    if (input.rate_limits) savePlanLimits(input.rate_limits)
     if (input.transcript_path) {
       const cfg = loadConfig()
       const tracker = new CrewTracker({ follow: { kind: 'transcript', path: input.transcript_path }, stallMs: cfg.stallMinutes * 60_000 })

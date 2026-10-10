@@ -1,7 +1,7 @@
 {
   "name": "luff-crew-monitor",
   "version": "1.0.0",
-  "description": "Live dashboard of every subagent: model, effort, steps, context, estimated cost and time, plus job progress. Adds /agents-info.",
+  "description": "Live crew panel inside Claude: every subagent with model, effort, steps, context, estimated cost and time, plus a job bar above the prompt and your 5-hour and weekly plan limits. /agents-info toggles it.",
   "author": {
     "name": "Harsh Tanwar",
     "url": "https://github.com/tanwar-harsh"
@@ -16,11 +16,17 @@
     "cost",
     "mcp"
   ],
-  "mcpServers": {
-    "luff-crew": {
-      "command": "node",
-      "args": [
-        "${CLAUDE_PLUGIN_ROOT}/dist/luff-crew.mjs"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Panel language",
+      "description": "auto follows Claude Code's language setting, then the system locale",
+      "default": "auto",
+      "options": [
+        "auto",
+        "en",
+        "ru"
       ]
     }
   }

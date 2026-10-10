@@ -1,4 +1,5 @@
-import type { Lang } from './config.ts'
+/** Languages the panel speaks. */
+export type Lang = 'en' | 'ru'
 import type { Phase } from './types.ts'
 
 export const STRINGS = {
@@ -29,6 +30,20 @@ export const STRINGS = {
     estimate: 'Costs are estimates from token counts and list prices, not your bill.',
     phase: { plan: 'Plan', design: 'Design', delegate: 'Tasks', review: 'Review', close: 'Done' } satisfies Record<Phase, string>,
     busy: 'running',
+    limits: 'Plan limits',
+    fiveHour: '5-hour session',
+    weekly: 'Weekly',
+    resetsIn: 'resets in',
+    startsNext: 'resets with your next message',
+    updated: 'updated',
+    justNow: 'just now',
+    ago: 'ago',
+    requests: 'requests',
+    lastHours: 'last 5 hours',
+    lastDays: 'last 7 days',
+    noPlan: 'no plan data',
+    limitsHint:
+      'Plan percentages come from Claude Code\'s status line (Claude.ai plans only). Run `luff-crew-monitor setup --statusline` to record them. Token and cost totals are counted from your local transcripts.',
   },
   ru: {
     appName: 'Команда',
@@ -57,6 +72,20 @@ export const STRINGS = {
     estimate: 'Стоимость оценена по токенам и прайс-листу, это не счёт.',
     phase: { plan: 'План', design: 'Дизайн', delegate: 'Задачи', review: 'Ревью', close: 'Готово' } satisfies Record<Phase, string>,
     busy: 'в работе',
+    limits: 'Лимиты плана',
+    fiveHour: 'Сессия 5 часов',
+    weekly: 'Неделя',
+    resetsIn: 'сброс через',
+    startsNext: 'сброшен, начнётся со следующего сообщения',
+    updated: 'обновлено',
+    justNow: 'только что',
+    ago: 'назад',
+    requests: 'запросов',
+    lastHours: 'за 5 часов',
+    lastDays: 'за 7 дней',
+    noPlan: 'нет данных плана',
+    limitsHint:
+      'Проценты плана приходят из статус-строки Claude Code (только планы Claude.ai). Запустите `luff-crew-monitor setup --statusline`, чтобы их записывать. Токены и стоимость считаются по локальным транскриптам.',
   },
 } as const
 

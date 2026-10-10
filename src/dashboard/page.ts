@@ -18,6 +18,19 @@ function assets(): { css: string; js: string } {
   return cached
 }
 
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
+
+/** Escaped text with `code` spans turned into <code>. */
+const withCode = (s: string): string => escapeHtml(s).replace(/`([^`]+)`/g, '<code>$1</code>')
+
+const limitWindow = (id: string, label: string): string => `
+      <div class="limit" id="${id}" data-level="none">
+        <div class="limit-top"><span class="k">${label}</span><span class="v num" data-k="pct">—</span></div>
+        <div class="meter" role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" data-k="meter"><i data-k="fill"></i></div>
+        <div class="limit-sub"><span data-k="reset"></span><span class="num" data-k="local"></span></div>
+      </div>`
+
 /** JSON that is safe inside a <script> element. */
 const scriptJson = (value: unknown): string =>
   JSON.stringify(value)
@@ -50,6 +63,20 @@ export function renderPage(nonce: string, lang: Lang): string {
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>
     </button>
   </div>
+
+  <section class="card limits" id="limits" aria-label="${s.limits}">
+    <div class="limits-h">
+      <h2>${s.limits}</h2>
+      <span class="upd" id="l-updated"></span>
+      <div class="spacer"></div>
+      <button class="link" id="limits-toggle" aria-controls="limits-body">${s.collapse}</button>
+    </div>
+    <div id="limits-body">
+      <div class="limit-grid">${limitWindow('l-5h', s.fiveHour)}${limitWindow('l-7d', s.weekly)}
+      </div>
+      <p class="hint" id="l-hint" hidden>${withCode(s.limitsHint)}</p>
+    </div>
+  </section>
 
   <div class="card job" id="job" hidden>
     <span class="dot"></span>

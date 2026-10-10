@@ -13,6 +13,16 @@ export function fmtTime(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
+/** A coarse countdown: `3d 4h`, `1h 20m`, `12m`. */
+export function fmtDuration(ms: number): string {
+  const m = Math.max(0, Math.ceil(ms / 60_000))
+  const d = Math.floor(m / 1440)
+  const h = Math.floor((m % 1440) / 60)
+  if (d) return `${d}d ${h}h`
+  if (h) return `${h}h ${m % 60}m`
+  return `${m}m`
+}
+
 /** Lowercase, punctuation-free form used to match task titles against run descriptions. */
 export const normalize = (s: string): string =>
   s
