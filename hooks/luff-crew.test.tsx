@@ -75,9 +75,18 @@ test('every prompt moves the bar, with no job and no subagent', async ($, on) =>
     }
   })
   on('turn.complete', () => ({ text: '' }))
+  on('session.measure', ($, e) => e as never)
 
   await $.turn.start({ text: 'fix the login bug', turnId: 't1' })
   for await (const _ of $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 1 })) void _
+
+  await $.session.measure({
+    changed: ['rateLimits'],
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 91 },
+      { kind: 'seven_day', percentUsed: 40 },
+    ],
+  } as never)
 
   const bands: Record<string, { findAll: (q: { type?: string; key?: string; text?: string | RegExp }) => Promise<readonly unknown[]> }> = {}
   for (const surface of SURFACES) {
@@ -86,6 +95,10 @@ test('every prompt moves the bar, with no job and no subagent', async ($, on) =>
     expect((await band.findAll({ type: 'Text', text: /Working/ })).length).toBeGreaterThan(0)
     expect((await band.findAll({ type: 'Text', text: /1 steps · 2 tools \(ctx_execute\)/ })).length).toBeGreaterThan(0)
     expect((await band.findAll({ type: 'Button', key: 'crew' })).length).toBeGreaterThan(0)
+    // Plan limits sit at the right edge, one meter per window.
+    expect((await band.findAll({ type: 'Text', text: /5h 91%/ })).length).toBeGreaterThan(0)
+    expect((await band.findAll({ type: 'Text', text: /wk 40%/ })).length).toBeGreaterThan(0)
+    if (surface === 'desktop') expect((await band.findAll({ type: 'Svg' })).length).toBeGreaterThan(1)
   }
 
   // The answer lands: mounted bands redraw as done.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0 — 2026-10-10
+
+- **Plan-limit rings on the job bar**: the 5-hour and weekly limits move to the bar's right edge, beside the crew count, each drawn as a circular meter that turns amber past 70% and red past 90%. The terminal shows the same colors as text.
+
 ## 1.3.0 — 2026-10-10
 
 - **The job bar follows every prompt**, not only subagent jobs: while Claude works it shows the prompt, a segment per model request, tool calls (and the one in flight), elapsed time and estimated cost; when the turn ends it reads Done or Stopped until the next prompt or ✕. A finished job gives way to the next prompt. The panel shows the same line for the current or last prompt.

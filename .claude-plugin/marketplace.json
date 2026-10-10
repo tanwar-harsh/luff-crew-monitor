@@ -12,7 +12,7 @@
       "name": "luff-crew-monitor",
       "source": "./",
       "description": "Crew panel inside Claude: every subagent with model, effort, steps, context, estimated cost and time, a job bar above the prompt, and 5-hour and weekly plan limits.",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "category": "productivity"
     }
   ]

@@ -30,7 +30,7 @@ import {
   STRIP_H,
   stripSvg,
   textBar,
-  limitsShort,
+  meterColor,
   limitPairs,
   ringSvg,
   RING,
@@ -982,14 +982,13 @@ export const register: Register = (on, options) => {
       const prompt = shownTurn.prompt || s().thisPrompt
       const word = turnWord(shownTurn)
       const stats = turnStats(shownTurn, now)
-      const short = limitsShort(limits.windows)
       const panelButton = <Button key="crew" plain label={runs.length ? `×${runs.length}` : s().appName} onPress={() => void togglePane($)} />
 
       if (e.surface !== 'terminal' && 'Svg' in ui) {
         const { Svg } = ui
         const color = shownTurn.status === 'failed' ? BAD : shownTurn.status === 'done' ? OK : ACCENT
         const cols = e.props.bodyColumns || 100
-        const reserved = Math.min(28, prompt.length) + word.length + stats.length + short.length + 22
+        const reserved = Math.min(28, prompt.length) + word.length + stats.length + pairs.length * 10 + 22
         const barW = Math.max(60, Math.min(600, (cols - reserved) * 8))
         return (
           <Box flexDirection="row" alignItems="center" gap={1}>
@@ -1043,14 +1042,13 @@ export const register: Register = (on, options) => {
     const title = shownFlow?.title ?? s().appName
     const label = shownFlow ? flowLabel(shownFlow, running) : `${running} ${s().busy}`
     const ratio = shownFlow ? flowRatio(shownFlow) : 0
-    const short = limitsShort(limits.windows)
     const crewButton = <Button key="crew" plain label={`×${crew}`} onPress={() => void togglePane($)} />
 
     if (e.surface !== 'terminal' && 'Svg' in ui) {
       const { Svg } = ui
       const color = shownFlow?.finished ? OK : ACCENT
       const cols = e.props.bodyColumns || 100
-      const reserved = Math.min(28, title.length) + label.length + short.length + 22
+      const reserved = Math.min(28, title.length) + label.length + pairs.length * 10 + 22
       const barW = Math.max(60, Math.min(900, (cols - reserved) * 8))
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
