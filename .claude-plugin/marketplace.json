@@ -12,7 +12,7 @@
       "name": "luff-crew-monitor",
       "source": "./",
       "description": "Live dashboard of every subagent: model, effort, steps, context, estimated cost and time, plus job progress.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "productivity"
     }
   ]
