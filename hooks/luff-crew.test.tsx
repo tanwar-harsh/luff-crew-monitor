@@ -22,7 +22,7 @@ test('tracks a job, its subagents and their steps, and draws them in the pane an
   // A worker's own call carries its loop's agentId.
   await $.tool.call({ tool: `mcp__${P}__step`, agentId: 'a1', done: 1, total: 3, note: 'reading files' } as never)
 
-  const panes: Record<string, Awaited<ReturnType<typeof $.ui.mount>>> = {}
+  const panes: Record<string, { findAll: (q: { type?: string; key?: string; text?: string | RegExp }) => Promise<readonly unknown[]> }> = {}
   for (const surface of SURFACES) {
     const pane = (panes[surface] = await $.ui.mount({ plugin: P, surface, component: 'Pane', requestId: 'luff-crew', props: { bodyColumns: 80 } as never }))
     expect((await pane.findAll({ type: 'Text', text: /JSDoc \+ greet test/ })).length).toBeGreaterThan(0)
@@ -31,7 +31,7 @@ test('tracks a job, its subagents and their steps, and draws them in the pane an
     if (surface === 'terminal') expect((await pane.findAll({ type: 'Text', text: /1\/3 · reading files/ })).length).toBeGreaterThan(0)
 
     const band = await $.ui.mount({ plugin: P, surface, component: 'AbovePrompt', props: { bodyColumns: 100, hasSurvey: false } as never })
-    expect((await band.findAll({ type: 'Button', label: '×2' })).length).toBeGreaterThan(0)
+    expect((await band.findAll({ type: 'Button', key: 'crew' })).length).toBeGreaterThan(0)
   }
 
   // The worker finishes: the next progress call accepts it.
@@ -40,7 +40,7 @@ test('tracks a job, its subagents and their steps, and draws them in the pane an
   expect(JSON.stringify(done)).toContain('Tasks 1/2')
 
   // Mounted panes redraw from state: the terminal one now lists the finished run.
-  expect((await panes.terminal!.findAll({ type: 'Button', label: /Finished · 1/ })).length).toBeGreaterThan(0)
+  expect((await panes.terminal!.findAll({ type: 'Button', key: 'finished' })).length).toBeGreaterThan(0)
 })
 
 test('stays out of the way with no job and no subagent', async ($, on) => {

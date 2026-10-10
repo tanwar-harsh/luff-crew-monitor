@@ -35,3 +35,15 @@ jobs:
           node-version: 18.17
       - run: node dist/luff-crew.mjs --version
       - run: node dist/luff-crew.mjs --help
+
+  mod:
+    # The mod itself, checked by the engine that loads it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: claude plugin validate .
+      - run: claude plugin test .

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — 2026-10-10
+
+- Panel and job bar read correctly in every theme: all words are the app's own themed text, and only mascots and bars are drawn as SVG, in colors that work on light and dark.
+- The protocol note tells subagents to load the `step` tool through ToolSearch when it is deferred.
+- README: mod-first install, screenshots in light and dark, how it works.
+
 ## 1.1.1 — 2026-10-10
 
 - Drop the MCP-era `/agents-info` command file so the mod's own command answers.

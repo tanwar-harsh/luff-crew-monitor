@@ -5,32 +5,33 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { applyProgress, cleanTasks, startsNewFlow } from '../src/flow.ts'
-import { clip, fmtCost, fmtTime, fmtTokens, normalize } from '../src/format.ts'
+import { clip, fmtCost, fmtDuration, fmtTime, fmtTokens, normalize } from '../src/format.ts'
 import { STRINGS } from '../src/i18n.ts'
 import { contextWindowOf, costOf, modelLabel, tokensOf } from '../src/pricing.ts'
 import type { ProgressInput } from '../src/types.ts'
 import type { CrewFlow, CrewLimitWindow, CrewPanel, CrewRun, CrewTask, CrewUsageBuckets } from '../types'
 import {
-  BAND_H,
-  bandSvg,
-  COMPACT_H,
-  compactSvg,
+  ACCENT,
+  BAD,
+  barSvg,
   ctxPercent,
-  elapsed,
-  LIMIT_H,
-  limitRowSvg,
-  limitsShort,
-  PLANNED_H,
-  plannedRowSvg,
+  MASCOT_H,
+  MASCOT_W,
+  mascotSvg,
+  meterColor,
+  OK,
   progressOf,
-  ROW_H,
   runMeta,
-  runRowSvg,
   runStats,
+  SEG_H,
+  segmentsSvg,
+  statusColor,
+  statusGlyph,
   stepText,
+  STRIP_H,
+  stripSvg,
   textBar,
-  TILES_H,
-  tilesSvg,
+  limitsShort,
   typeColor,
 } from './draw.ts'
 
@@ -68,7 +69,7 @@ The user watches subagents on the Luff Crew panel. When you split a job across s
 1. After presenting the plan, call \`${TOOL_PROGRESS}\` with a short title, the tasks (each title EXACTLY equal to the Agent \`description\` you will use) and phase "delegate".
 2. Each time you accept a finished task, call it with the new \`done\` count; switch \`phase\` to "review" while checking results.
 3. When everything is finished, call it once with \`finished: true\`.
-In each subagent's prompt, ask it to call \`${TOOL_STEP}\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes.
+In each subagent's prompt, ask it to call \`${TOOL_STEP}\` right after reading its brief (done: 0, total: its plan in 3-8 steps) and again as each step finishes, loading it first with ToolSearch (\`select:${TOOL_STEP}\`) if it is deferred.
 Skip all of this for work you do yourself without subagents.`
 
 // ---------------------------------------------------------------------------
@@ -480,13 +481,65 @@ export const register: Register = (on, options) => {
     if (e.surface !== 'terminal' && 'Svg' in ui) {
       const { Svg } = ui
       const W = Math.max(260, Math.min(900, (e.props.bodyColumns || 48) * 8 - 8))
-      const limitWords = { resetsIn: s().resetsIn, noPlan: s().noPlan, requests: s().requests }
+      const barW = Math.max(120, W - MASCOT_W - 34)
       const icons = [
         ...running.map(r => ({ type: r.type, effort: r.effort, running: true, dim: false })),
         ...finished.map(r => ({ type: r.type, effort: r.effort, running: false, dim: false })),
         ...planned.map(p => ({ type: p.agent ?? 'planned', effort: p.effort, running: false, dim: true })),
       ]
-      const summary = `≈${fmtCost(t.cost)} · ${fmtTokens(t.tokens)} · ${fmtTime(t.time)}`
+      // Words are engine Text (themed by the app); pictures are theme-neutral SVG.
+      const runRow = (r: CrewRun, prefix: string) => {
+        const color = typeColor(r.type)
+        const progress = progressOf(r)
+        const steps = stepText(r)
+        return (
+          <Box key={`${prefix}-${r.id}`} flexDirection="row" gap={1} alignItems="center">
+            <Svg key="m" source={mascotSvg(r.type, r.effort, { running: r.status === 'running', dim: r.status === 'failed' })} alt={r.type} width={MASCOT_W} height={MASCOT_H} />
+            <Box key="body" flexDirection="column" flexGrow={1}>
+              <Text key="d" bold wrap="truncate-end">
+                <Text color={statusColor(r.status, color)}>{statusGlyph(r.status)}</Text> {r.description || r.type}
+              </Text>
+              <Text key="meta" wrap="truncate-end">
+                <Text color={color} bold>
+                  {r.type}
+                </Text>
+                <Text dimColor> · {runMeta(r, words)}</Text>
+              </Text>
+              <Text key="stats" dimColor wrap="truncate-end">
+                {steps ? `${steps}   ` : ''}
+                {runStats(r, now)}
+              </Text>
+              <Svg
+                key="bar"
+                source={barSvg(barW, progress ?? ctxPercent(r) / 100, progress === null ? '#8a8a8a' : r.status === 'failed' ? BAD : color, 4)}
+                alt={progress === null ? `context ${ctxPercent(r)}%` : `${Math.round(progress * 100)}%`}
+                width={barW}
+                height={4}
+              />
+            </Box>
+          </Box>
+        )
+      }
+      const limitRow = (row: (typeof limitRows)[number]) => {
+        const pct = row.window?.percentUsed
+        const reset = row.window?.resetsAt ? ` · ${s().resetsIn} ${fmtDuration(row.window.resetsAt - now)}` : ''
+        return (
+          <Box key={`limit-${row.label}`} flexDirection="column">
+            <Box key="head" flexDirection="row" justifyContent="space-between">
+              <Text key="l" bold>
+                {row.label}
+              </Text>
+              <Text key="r" dimColor>
+                {pct === undefined ? s().noPlan : `${Math.round(pct)}%${reset}`}
+              </Text>
+            </Box>
+            <Svg key="bar" source={barSvg(W, pct === undefined ? null : pct / 100, meterColor(pct ?? 0), 7)} alt={`${row.label} ${pct ?? 0}%`} width={W} height={7} />
+            <Text key="local" dimColor wrap="truncate-end">
+              {`${row.span}: ${fmtTokens(row.local.tokens)} ${s().tokensWord} · ≈${fmtCost(row.local.costUsd)} · ${row.local.requests} ${s().requests}`}
+            </Text>
+          </Box>
+        )
+      }
       return (
         <Box flexDirection="column" gap={1}>
           {title ? (
@@ -494,31 +547,19 @@ export const register: Register = (on, options) => {
               {title}
             </Text>
           ) : null}
-          <Svg
-            key="tiles"
-            source={tilesSvg(W, [
-              [s().cost, '≈' + fmtCost(t.cost)],
-              [s().tokens, fmtTokens(t.tokens)],
-              [s().time, fmtTime(t.time)],
-            ])}
-            alt={`${s().cost} ${summary}`}
-            width={W}
-            height={TILES_H}
-          />
+          <Text key="totals">
+            <Text dimColor>{s().cost} </Text>
+            <Text bold>≈{fmtCost(t.cost)}</Text>
+            <Text dimColor>{`   ${s().tokens} `}</Text>
+            <Text bold>{fmtTokens(t.tokens)}</Text>
+            <Text dimColor>{`   ${s().time} `}</Text>
+            <Text bold>{fmtTime(t.time)}</Text>
+          </Text>
           {toggleLimits}
-          {panel.isLimitsOpen &&
-            limitRows.map(row => (
-              <Svg
-                key={`limit-${row.label}`}
-                source={limitRowSvg(W, row, now, limitWords)}
-                alt={`${row.label}: ${row.window ? Math.round(row.window.percentUsed) + '%' : s().noPlan}`}
-                width={W}
-                height={LIMIT_H}
-              />
-            ))}
+          {panel.isLimitsOpen ? limitRows.map(limitRow) : null}
           {panel.isLimitsOpen && !limits.windows.length ? (
             <Text key="limits-hint" dimColor>
-              {s().noPlan}: Claude reports plan limits after its first reply (Claude.ai plans only).
+              {s().limitsHint}
             </Text>
           ) : null}
           {toggleCompact}
@@ -527,27 +568,35 @@ export const register: Register = (on, options) => {
               {s().empty}
             </Text>
           ) : null}
-          {panel.isCompact && !isEmpty ? <Svg key="compact" source={compactSvg(W, icons, summary)} alt={summary} width={W} height={COMPACT_H} /> : null}
+          {panel.isCompact && !isEmpty ? <Svg key="strip" source={stripSvg(W, icons)} alt={`${icons.length} ${s().agents}`} width={Math.min(W, icons.length * 38)} height={STRIP_H} /> : null}
           {!panel.isCompact && running.length > 0 ? (
             <Text key="h-running" dimColor>
               {`${s().running} · ${running.length}`}
             </Text>
           ) : null}
-          {!panel.isCompact &&
-            running.map(r => <Svg key={`run-${r.id}`} source={runRowSvg(W, r, now, words)} alt={`${r.description}: ${s().running}`} width={W} height={ROW_H} />)}
+          {!panel.isCompact ? running.map(r => runRow(r, 'run')) : null}
           {!panel.isCompact && finished.length > 0 ? toggleFinished : null}
-          {!panel.isCompact &&
-            panel.isFinishedOpen &&
-            finished.map(r => <Svg key={`fin-${r.id}`} source={runRowSvg(W, r, now, words)} alt={`${r.description}: ${s().finished}`} width={W} height={ROW_H} />)}
+          {!panel.isCompact && panel.isFinishedOpen ? finished.map(r => runRow(r, 'fin')) : null}
           {!panel.isCompact && planned.length > 0 ? (
             <Text key="h-planned" dimColor>
               {`${s().planned} · ${planned.length}`}
             </Text>
           ) : null}
-          {!panel.isCompact &&
-            planned.map(p => (
-              <Svg key={`plan-${p.n}`} source={plannedRowSvg(W, p.n, p, s().after)} alt={`${p.n}. ${p.title}: ${s().planned}`} width={W} height={PLANNED_H} />
-            ))}
+          {!panel.isCompact
+            ? planned.map(p => (
+                <Box key={`plan-${p.n}`} flexDirection="row" gap={1} alignItems="center">
+                  <Svg key="m" source={mascotSvg(p.agent ?? 'planned', p.effort, { dim: true })} alt="planned" width={MASCOT_W} height={MASCOT_H} />
+                  <Box key="body" flexDirection="column" flexGrow={1}>
+                    <Text key="t" dimColor bold wrap="truncate-end">
+                      ◷ {p.n}. {p.title}
+                    </Text>
+                    <Text key="m" dimColor wrap="truncate-end">
+                      {[p.agent, p.model ? modelLabel(p.model) : '', p.effort, p.after.length ? `${s().after} ${p.after.join(', ')}` : ''].filter(Boolean).join(' · ') || ' '}
+                    </Text>
+                  </Box>
+                </Box>
+              ))
+            : null}
           <Text key="estimate" dimColor>
             {s().estimate}
           </Text>
@@ -665,19 +714,31 @@ export const register: Register = (on, options) => {
 
     if (e.surface !== 'terminal' && 'Svg' in ui) {
       const { Svg } = ui
-      const width = Math.max(200, Math.min(1600, (e.props.bodyColumns || 100) * 8 - 96))
-      const model = {
-        title,
-        label,
-        ratio,
-        finished: shownFlow?.finished ?? false,
-        segments: shownFlow ? segments(shownFlow, runs) : [],
-        isWorking: running > 0,
-        limits: short,
-      }
+      const color = shownFlow?.finished ? OK : ACCENT
+      const cols = e.props.bodyColumns || 100
+      const reserved = Math.min(28, title.length) + label.length + short.length + 22
+      const barW = Math.max(60, Math.min(900, (cols - reserved) * 8))
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
-          <Svg key="band" source={bandSvg(width, model)} alt={`${title}: ${label}, ${Math.round(ratio * 100)}%`} width={width} height={BAND_H} />
+          <Text key="title" bold wrap="truncate-end">
+            <Text color={color}>●</Text> {clip(title, 28)}
+          </Text>
+          <Svg
+            key="segs"
+            source={segmentsSvg(barW, shownFlow ? segments(shownFlow, runs) : [], color, running > 0)}
+            alt={`${label}, ${Math.round(ratio * 100)}%`}
+            width={barW}
+            height={SEG_H}
+          />
+          <Text key="label" bold color={color}>
+            {label}
+          </Text>
+          <Text key="pct" dimColor>{`${Math.round(ratio * 100)}%`}</Text>
+          {short ? (
+            <Text key="limits" dimColor>
+              {short}
+            </Text>
+          ) : null}
           {crewButton}
           {shownFlow ? dismiss : null}
         </Box>
@@ -703,7 +764,4 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // Unused locally but kept typed: modelLabel and elapsed are part of the draw API.
-  void modelLabel
-  void elapsed
 }
