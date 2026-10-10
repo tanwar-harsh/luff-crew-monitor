@@ -133,7 +133,7 @@ The mod is a hooks module (`hooks/register.tsx`) that Claude Code loads into eve
 - `session.measure` gives the 5-hour and weekly plan windows.
 - `tool.call` answers `progress` and `step`. A subagent's call carries its loop's id, which is how its steps land on the right row.
 - `turn.start`, `turn.step` and `turn.complete` on the main loop drive the per-prompt bar.
-- A `Pane` and an `AbovePrompt` render hook draw the panel and the bar. Words are the app's own themed text. Mascots, bars and limit rings are small SVGs (desktop, VS Code) or text (terminal).
+- A `Pane` and an `AbovePrompt` render hook draw the panel and the bar. Words are the app's own themed text. Mascots, bars and limit rings are small SVGs (desktop, VS Code); the terminal draws mascots in colored half blocks and bars as text. Each crew member's look comes from `src/crew.ts`, which the browser view shares, so a subagent looks the same everywhere.
 - `/agents-web` runs `node dist/luff-crew.mjs dashboard --session <id>` as a child of the session (`$.process.spawn`); the child ends with the session or on `/agents-web stop`.
 
 Inside Claude it needs no server, no browser and no network.
