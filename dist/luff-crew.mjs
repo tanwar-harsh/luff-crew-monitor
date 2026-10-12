@@ -18892,7 +18892,7 @@ var STRINGS = {
 
 // src/version.ts
 init_define_LUFF_CREW_ASSETS();
-var VERSION = "1.6.8";
+var VERSION = "1.6.9";
 
 // src/dashboard/page.ts
 var cached2 = null;

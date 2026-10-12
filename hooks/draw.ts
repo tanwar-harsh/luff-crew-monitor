@@ -149,116 +149,175 @@ export function segmentsSvg(W: number, segments: Array<'done' | 'running' | 'tod
 
 // ---------------------------------------------------------------------------
 // The terminal mascot: the crew member redrawn for text, not shrunk from the
-// SVG one. A 7×6 pixel grid (six columns of body, one for what it holds),
-// drawn with half blocks, two pixels per cell, so it stands three lines tall,
-// the height of a row's text. Few pixels, so every one is a feature: a round
-// head, tall eyes, one small mouth, and legs that walk.
+// SVG one. It stands three lines tall (the height of a row's text) and seven
+// columns wide: six of body, one for what it holds. Each cell is a quadrant
+// block, 2×2 pixels in two colors, so the grid is 14×6 pixels, twice the
+// detail half blocks give. Pixels are drawn so no cell needs a third color:
+// round corners, eyes with a glint, a mouth, feet, a hat with its own shape.
 //
-//   row 0 hat · 1 head top · 2-3 eyes · 4 chin and mouth · 5 legs
+//   pixel rows: 0 hat · 1 head top · 2-3 eyes · 4 chin and mouth · 5 feet
+//   cell columns: 0 and 5 the round sides · 1 and 4 the eyes · 2-3 the mouth
+//
+// While a member runs (`frame` > 0) it blinks, glances, lifts its feet in
+// turn, its hat's loose parts flutter, and what it holds moves.
 
 export type Cell = { ch: string; fg?: string | undefined; bg?: string | undefined }
 
 export const TERM_MASCOT_W = 7
 export const TERM_MASCOT_H = 3
 
-type Dot = (x: number, y: number, c: string) => void
-type Span = (x0: number, x1: number, y: number, c: string) => void
+type Dot = (x: number, y: number, c: string | undefined) => void
+type Span = (x0: number, x1: number, y: number, c: string | undefined) => void
 
 const GREY = '#8A847C'
 const MOP = '#CFCFCB'
 const LIP = '#7A2230'
+const BLUSH = '#FF8FA3'
 
 // Dark hats vanish against a dark terminal: lift them toward white.
 const lift = (hex: string): string => {
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number]
+  const [r, g, b] = rgb(hex)
   if (0.2126 * r + 0.7152 * g + 0.0722 * b > 90) return hex
   return '#' + [r, g, b].map(v => Math.round(v + (255 - v) * 0.45).toString(16).padStart(2, '0')).join('')
 }
+const rgb = (hex: string): [number, number, number] => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number]
 
-const TERM_HATS: Record<Look['hat'], (p: Dot, s: Span, c: string, d: string) => void> = {
-  bandana: (p, s, c, d) => { s(1, 4, 1, c); p(2, 1, WHITE); p(5, 1, d) },
-  sailor: (_p, s, c) => { s(1, 4, 0, WHITE); s(1, 4, 1, c) },
-  tricorne: (p, s, c, d) => { s(0, 5, 0, c); p(0, 0, d); p(5, 0, d); s(2, 3, 0, GOLD) },
-  beanie: (p, s, c, d) => { s(1, 4, 0, c); s(1, 4, 1, d); p(2, 0, WHITE) },
-  captain: (p, s, c, d) => { s(1, 4, 0, c); p(2, 0, GOLD); s(0, 5, 1, d) },
-  headphones: (p, s, c) => { s(1, 4, 0, GREY); for (const y of [2, 3]) { p(0, y, c); p(5, y, c) } },
-  antennae: (p, _s, c) => { p(1, 0, c); p(4, 0, c) },
-  spikes: (p, s, c) => { p(0, 0, c); p(2, 0, c); p(3, 0, c); p(5, 0, c); s(1, 4, 1, c) },
-  bow: (p, _s, c, d) => { p(3, 0, c); p(4, 0, d); p(5, 0, c) },
+// Hats sit on pixel rows 0-1. Over the head (cells 1-4) a cell's top pixels
+// share one color with the head below; beside it (cells 0 and 5) anything goes.
+const TERM_HATS: Record<Look['hat'], (p: Dot, s: Span, c: string, d: string, f: number) => void> = {
+  // Tied over the head top, its tail fluttering.
+  bandana: (p, s, c, _d, f) => { s(2, 9, 1, c); p(10, 1, c); p(f % 2 ? 11 : 10, 0, c) },
+  // White cap on a colored band, a ribbon behind.
+  sailor: (p, s, c, _d, f) => { s(2, 9, 0, WHITE); s(2, 9, 1, c); p(10, 1, c); p(f % 2 ? 11 : 10, f % 2 ? 1 : 0, c) },
+  // A wide brim with upturned corners.
+  tricorne: (p, s, c) => { s(0, 11, 0, c); p(0, 1, c); p(11, 1, c); s(4, 7, 0, GOLD) },
+  // A knit cap and a darker rim.
+  beanie: (_p, s, c, d) => { s(2, 9, 0, c); s(2, 9, 1, d) },
+  // A cap on a gold band wider than the head.
+  captain: (_p, s, c) => { s(2, 9, 0, c); s(0, 11, 1, GOLD) },
+  // A band over the top, cups over the round sides.
+  headphones: (p, s, c) => { s(2, 9, 0, GREY); p(1, 1, GREY); p(10, 1, GREY); p(1, 2, c); s(0, 1, 3, c); p(10, 2, c); s(10, 11, 3, c) },
+  // Two stalks at the sides that wiggle.
+  antennae: (p, _s, c, _d, f) => { p(f % 2 ? 0 : 1, 0, c); p(1, 1, c); p(f % 2 ? 11 : 10, 0, c); p(10, 1, c) },
+  // Hair standing up in four spikes.
+  spikes: (p, s, c) => { s(2, 9, 1, c); for (const x of [2, 4, 6, 8]) p(x, 0, c); p(1, 1, c); p(10, 1, c) },
+  // A bow on one side, its knot darker.
+  bow: (p, s, c, d) => { s(6, 7, 0, c); s(8, 9, 0, d); p(10, 0, c); p(10, 1, c); p(11, 0, c) },
 }
 
-// Eyes two pixels tall at columns 1 and 4.
-const TERM_EYES: Record<Look['eyes'], (p: Dot, L: Look) => void> = {
-  round: p => { for (const x of [1, 4]) { p(x, 2, INK); p(x, 3, INK) } },
-  big: p => { for (const x of [1, 4]) { p(x, 2, WHITE); p(x, 3, INK) } },
-  sleepy: (p, L) => { for (const x of [1, 4]) { p(x, 2, shade(L.body, 0.72)); p(x, 3, INK) } },
-  patch: p => { p(0, 2, INK); p(1, 2, INK); p(1, 3, INK); p(4, 2, INK); p(4, 3, INK) },
-  glasses: p => { for (const x of [1, 4]) { p(x, 2, LENS); p(x, 3, INK) }; p(2, 2, GREY); p(3, 2, GREY) },
-  fierce: (p, L) => { for (const x of [1, 4]) { p(x, 2, shade(L.body, 0.5)); p(x, 3, INK) }; p(2, 2, shade(L.body, 0.5)); p(3, 2, shade(L.body, 0.5)) },
+// Eyes fill cells 1 and 4: pixels (2-3, 2-3) and (8-9, 2-3).
+type Eye = [string, string, string, string] // top-left, top-right, bottom-left, bottom-right
+const TERM_EYES: Record<Look['eyes'], (L: Look, f: number, side: 0 | 1) => Eye> = {
+  round: () => [WHITE, INK, INK, INK],
+  // Big whites whose pupils glance from side to side.
+  big: (_L, f) => (f % 4 < 2 ? [WHITE, INK, WHITE, INK] : [INK, WHITE, INK, WHITE]),
+  sleepy: L => [L.body, L.body, INK, INK],
+  patch: (_L, _f, side) => (side ? [WHITE, INK, INK, INK] : [INK, INK, INK, INK]),
+  glasses: () => [LENS, LENS, INK, INK],
+  // Brows slanting in.
+  fierce: (L, _f, side) => (side ? [INK, L.body, INK, INK] : [L.body, INK, INK, INK]),
 }
 
-const TERM_MOUTHS: Record<Look['mouth'], (p: Dot, s: Span, L: Look) => void> = {
-  smile: (_p, s, L) => s(2, 3, 4, shade(L.body, 0.5)),
-  flat: (_p, s) => s(2, 3, 4, INK),
-  open: (_p, s) => s(2, 3, 4, LIP),
-  mustache: (_p, s) => s(1, 4, 4, BROWN),
-  beard: (p, s) => { s(1, 4, 4, BROWN); p(0, 3, BROWN); p(5, 3, BROWN) },
-  grin: (_p, s) => s(2, 3, 4, WHITE),
+// The mouth fills the top of cells 2-3 (pixels 4-7, row 4).
+const TERM_MOUTHS: Record<Look['mouth'], (p: Dot, s: Span, L: Look, f: number) => void> = {
+  smile: (_p, s, L) => s(4, 7, 4, shade(L.body, 0.5)),
+  flat: (_p, s) => s(4, 7, 4, INK),
+  // Talks while it works.
+  open: (_p, s, L, f) => s(4, 7, 4, f % 2 ? shade(L.body, 0.5) : LIP),
+  // A handlebar: its ends curl up beside the mouth.
+  mustache: (p, s) => { s(4, 7, 4, BROWN); p(4, 3, BROWN); p(7, 3, BROWN) },
+  beard: (_p, s) => s(2, 9, 4, BROWN),
+  grin: (_p, s) => s(4, 7, 4, WHITE),
 }
 
-const TERM_EXTRAS: Record<Look['extra'], (p: Dot, L: Look) => void> = {
+const TERM_EXTRAS: Record<Look['extra'], (p: Dot, s: Span, L: Look, f: number) => void> = {
   none: () => {},
-  blush: p => { p(0, 3, '#FF8FA3'); p(5, 3, '#FF8FA3') },
-  scarf: (p, L) => { p(0, 4, L.extraColor); p(5, 4, L.extraColor) },
+  // Cheeks under the eyes.
+  blush: (_p, s) => { s(2, 3, 4, BLUSH); s(8, 9, 4, BLUSH) },
+  // Round the chin, a tail that flutters.
+  scarf: (p, s, L, f) => { s(1, 10, 4, L.extraColor); p(f % 2 ? 11 : 10, 5, L.extraColor) },
   belt: () => {},
 }
 
-const TERM_GEAR: Record<string, (p: Dot, frame: number) => void> = {
+// What it holds, in cell 6 (pixels 12-13).
+const TERM_GEAR: Record<string, (p: Dot, s: Span, f: number) => void> = {
   // A mop that swishes.
-  low: (p, f) => { for (let y = 0; y <= 3; y++) p(6, y, WOOD); p(6, 4, MOP); if (f % 2) p(6, 5, MOP) },
-  // An oar that rows.
-  medium: (p, f) => { for (let y = f % 2 ? 1 : 0; y <= 2; y++) p(6, y, WOOD); for (let y = 3; y <= 5; y++) p(6, y, '#8A6038') },
-  // A spyglass that scans.
-  high: (p, f) => { p(6, f % 2 ? 1 : 2, '#9BD3F5'); p(6, f % 2 ? 2 : 3, '#C9A227') },
+  low: (p, s, f) => { for (let y = 0; y <= 3; y++) p(12, y, WOOD); s(12, 13, 4, MOP); p(f % 2 ? 13 : 12, 5, MOP) },
+  // An oar that rows: the blade dips deep, then rises.
+  medium: (p, s, f) => { const blade = f % 2 ? 2 : 4; for (let y = 0; y < blade; y++) p(12, y, WOOD); for (let y = blade; y <= 5; y++) s(12, 13, y, '#8A6038') },
+  // A spyglass whose lens glints.
+  high: (p, s, f) => { s(12, 13, 2, GOLD); p(12, 3, GOLD); p(13, 3, f % 2 ? WHITE : '#9BD3F5') },
   // A lantern whose flame flickers.
-  xhigh: (p, f) => { p(6, 1, GREY); p(6, 2, GOLD); p(6, 3, f % 2 ? '#FFD27A' : '#FF8A3D'); p(6, 4, GOLD); p(6, 5, GREY) },
+  xhigh: (p, s, f) => { p(13, 0, GREY); s(12, 13, 1, GREY); p(12, 2, f % 2 ? '#FF8A3D' : '#FFD27A'); p(13, 2, f % 2 ? '#FFD27A' : '#FF8A3D'); p(12, 3, f % 2 ? '#FFD27A' : '#FF8A3D'); p(13, 3, f % 2 ? '#FF8A3D' : '#FFD27A'); s(12, 13, 4, GREY) },
   // A ship's wheel that turns.
-  max: (p, f) => { for (let y = 1; y <= 4; y++) p(6, y, (y + f) % 2 ? GOLD : WOOD) },
+  max: (p, _s, f) => { for (let y = 0; y <= 5; y++) for (const x of [12, 13]) p(x, y, (x + y + f) % 2 ? GOLD : WOOD) },
+}
+
+// Quadrant blocks by which of a cell's pixels take the foreground:
+// top-left 1, top-right 2, bottom-left 4, bottom-right 8.
+const QUAD = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'
+
+const dist = (a: string, b: string): number => {
+  const [x, y] = [rgb(a), rgb(b)]
+  return (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2 + (x[2] - y[2]) ** 2
+}
+
+/** One cell from its four pixels; a third color, if a design ever makes one, goes to the nearer of the two kept. */
+function quadCell(px: Array<string | undefined>): Cell {
+  const counts = new Map<string | undefined, number>()
+  for (const c of px) counts.set(c, (counts.get(c) ?? 0) + 1)
+  let kept = [...counts.keys()]
+  if (kept.length > 2) {
+    kept = kept.sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0)).slice(0, 2)
+    px = px.map(c => (kept.includes(c) ? c : c && kept.filter(Boolean).sort((a, b) => dist(c, a!) - dist(c, b!))[0]))
+  }
+  if (kept.length === 1) return kept[0] ? { ch: '█', fg: kept[0] } : { ch: ' ' }
+  // The foreground is a color, never the terminal's own background.
+  const fg = kept[0] ?? kept[1]
+  const bg = fg === kept[0] ? kept[1] : kept[0]
+  const mask = px.reduce((m, c, i) => (c === fg ? m | (1 << i) : m), 0)
+  return { ch: QUAD[mask] ?? ' ', fg, bg }
 }
 
 /**
  * A crew member as three lines of cells, runs of one style merged. `frame`
- * alternates the legs and moves what it holds, so a running row walks as the
- * pane redraws.
+ * counts seconds while it runs and stays 0 while it doesn't, so a resting
+ * member stands still.
  */
 export function mascotCells(slot: number, effort: string | undefined, frame = 0): Cell[][] {
   const L = lookOf(slot)
   const B = L.body
-  const px: Array<Array<string | undefined>> = Array.from({ length: TERM_MASCOT_H * 2 }, () => Array<string | undefined>(TERM_MASCOT_W).fill(undefined))
+  const D = shade(B, 0.72)
+  const W = TERM_MASCOT_W * 2
+  const px: Array<Array<string | undefined>> = Array.from({ length: TERM_MASCOT_H * 2 }, () => Array<string | undefined>(W).fill(undefined))
   const p: Dot = (x, y, c) => {
     const row = px[y]
-    if (row && x >= 0 && x < TERM_MASCOT_W) row[x] = c
+    if (row && x >= 0 && x < W) row[x] = c
   }
   const s: Span = (x0, x1, y, c) => {
     for (let x = x0; x <= x1; x++) p(x, y, c)
   }
-  // A round body: head top, two full rows, a chin, feet that step.
-  s(1, 4, 1, B); s(0, 5, 2, B); s(0, 5, 3, B); s(1, 4, 4, B)
-  for (const x of frame % 2 ? [2, 3] : [1, 4]) p(x, 5, shade(B, 0.72))
-  TERM_EXTRAS[L.extra](p, L)
-  TERM_MOUTHS[L.mouth](p, s, L)
-  TERM_EYES[L.eyes](p, L)
+  // A round body: narrow head top, widening to the cheeks, a chin.
+  s(2, 9, 1, B); s(1, 10, 2, B); s(0, 11, 3, B); s(1, 10, 4, B)
+  // Feet under the eye columns; while walking, one lifts at a time.
+  const lifted = frame ? frame % 3 : -1
+  if (lifted !== 1) s(2, 3, 5, D)
+  if (lifted !== 2) s(8, 9, 5, D)
+  TERM_EXTRAS[L.extra](p, s, L, frame)
+  TERM_MOUTHS[L.mouth](p, s, L, frame)
+  const blink = frame > 0 && (frame + slot) % 5 === 4
+  for (const [side, x] of [[0, 2], [1, 8]] as const) {
+    const [tl, tr, bl, br] = blink ? [B, B, INK, INK] : TERM_EYES[L.eyes](L, frame, side)
+    p(x, 2, tl); p(x + 1, 2, tr); p(x, 3, bl); p(x + 1, 3, br)
+  }
   const hat = lift(L.hatColor)
-  TERM_HATS[L.hat](p, s, hat, shade(hat, 0.72))
-  if (effort) TERM_GEAR[effort]?.(p, frame)
+  TERM_HATS[L.hat](p, s, hat, shade(hat, 0.72), frame)
+  if (effort) TERM_GEAR[effort]?.(p, s, frame)
   const lines: Cell[][] = []
   for (let j = 0; j < px.length; j += 2) {
     const cells: Cell[] = []
-    for (let x = 0; x < TERM_MASCOT_W; x++) {
-      const top = px[j]?.[x]
-      const bot = px[j + 1]?.[x]
-      const c: Cell =
-        !top && !bot ? { ch: ' ' } : top === bot ? { ch: '█', fg: top } : !bot ? { ch: '▀', fg: top } : !top ? { ch: '▄', fg: bot } : { ch: '▀', fg: top, bg: bot }
+    for (let x = 0; x < W; x += 2) {
+      const c = quadCell([px[j]?.[x], px[j]?.[x + 1], px[j + 1]?.[x], px[j + 1]?.[x + 1]])
       const last = cells[cells.length - 1]
       if (last && last.fg === c.fg && last.bg === c.bg) last.ch += c.ch
       else cells.push(c)

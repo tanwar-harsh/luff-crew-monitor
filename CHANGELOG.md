@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.9 — 2026-10-12
+
+- **More detailed, livelier terminal mascots.** Same size (7 columns, 3 lines), now drawn with quadrant blocks: 2×2 pixels per cell, a 14×6 grid, twice the detail. A rounded head, eyes with a glint (slanted brows when fierce, lenses for glasses), a handlebar mustache that curls, blush under the eyes, and hats with their own shapes. While a member runs it blinks (each at its own moment), big eyes glance side to side, feet lift in turn, open mouths talk, bandana tails, ribbons and scarves flutter, antennae wiggle, and its gear moves. Resting members stand still.
+
 ## 1.6.8 — 2026-10-12
 
 - **Terminal mascots redrawn.** The 1.6.7 shrink merged pixels into blobs, so the terminal crew is now drawn for text on its own 7×6 grid: three lines tall (the height of a row's text), 7 columns wide (was 8). A round head, a hat, two-pixel eyes, one small mouth and walking legs; dark hats are lifted so they show on a dark terminal. Desktop, VS Code and browser mascots are unchanged.
