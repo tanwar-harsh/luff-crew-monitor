@@ -1,6 +1,6 @@
 {
   "name": "luff-crew-monitor",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "description": "Claude Code mod: a live crew panel inside Claude with every subagent (model, effort, steps, context, estimated cost, time), a job bar above the prompt and 5-hour / weekly plan limits. Also ships a standalone MCP server and CLI.",
   "keywords": [
     "claude-code",

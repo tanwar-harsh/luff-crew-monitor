@@ -156,8 +156,15 @@ export function segmentsSvg(W: number, segments: Array<'done' | 'running' | 'tod
 
 export type Cell = { ch: string; fg?: string | undefined; bg?: string | undefined }
 
-export const TERM_MASCOT_W = 8
-export const TERM_MASCOT_H = 3
+// Drawn on an 8×6 source grid, then shrunk to 6×4 (two lines) for a ~30%
+// smaller terminal mascot. Each output pixel takes its source group's first
+// non-body color (hat, eyes, gear), else body, so the details survive.
+const SRC_W = 8
+const SRC_H = 6
+const COL_GROUPS = [[0], [1, 2], [3], [4], [5, 6], [7]]
+const ROW_GROUPS = [[0, 1], [2], [3], [5]]
+export const TERM_MASCOT_W = COL_GROUPS.length
+export const TERM_MASCOT_H = ROW_GROUPS.length / 2
 
 type Dot = (x: number, y: number, c: string) => void
 type Span = (x0: number, x1: number, y: number, c: string) => void
@@ -221,10 +228,10 @@ export function mascotCells(slot: number, effort: string | undefined, frame = 0)
   const L = lookOf(slot)
   const B = L.body
   const D = shade(B, 0.72)
-  const px: Array<Array<string | undefined>> = Array.from({ length: TERM_MASCOT_H * 2 }, () => Array<string | undefined>(TERM_MASCOT_W).fill(undefined))
+  const src: Array<Array<string | undefined>> = Array.from({ length: SRC_H }, () => Array<string | undefined>(SRC_W).fill(undefined))
   const p: Dot = (x, y, c) => {
-    const row = px[y]
-    if (row && x >= 0 && x < TERM_MASCOT_W) row[x] = c
+    const row = src[y]
+    if (row && x >= 0 && x < SRC_W) row[x] = c
   }
   const s: Span = (x0, x1, y, c) => {
     for (let x = x0; x <= x1; x++) p(x, y, c)
@@ -238,6 +245,12 @@ export function mascotCells(slot: number, effort: string | undefined, frame = 0)
   TERM_HATS[L.hat](p, s, L.hatColor, shade(L.hatColor, 0.72))
   if (effort) TERM_GEAR[effort]?.(p, s, frame)
   if (effort === 'xhigh') p(7, 3, frame % 2 ? '#FFD27A' : '#FF8A3D')
+  const px = ROW_GROUPS.map(ys =>
+    COL_GROUPS.map(xs => {
+      const all = ys.flatMap(y => xs.map(x => src[y]?.[x])).filter((c): c is string => !!c)
+      return all.find(c => c !== B) ?? all[0]
+    }),
+  )
   const lines: Cell[][] = []
   for (let j = 0; j < px.length; j += 2) {
     const cells: Cell[] = []

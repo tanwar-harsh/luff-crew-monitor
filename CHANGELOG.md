@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.7 — 2026-10-12
+
+- **Smaller terminal mascots.** The half-block crew in the terminal panel is about 30% smaller: 6 columns by 2 lines (was 8 by 3). It is still drawn on the 8×6 grid and then shrunk, keeping hat, eyes, blush, gear and legs; the chin row (mouth, beard, scarf, belt) is dropped. Desktop, VS Code and browser mascots are unchanged.
+
 ## 1.6.6 — 2026-10-11
 
 - **Bigger mascots in the panel and the browser.** Panel rows draw the crew at a crisp 2× (52×46, was 27×24) and the compact strip at 1.8×. The browser view draws them at 88×74 in rows (was 62×52) and 60×51 in the compact strip. Terminal mascots are unchanged. Screenshots refreshed.
