@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.8 — 2026-10-12
+
+- **Terminal mascots redrawn.** The 1.6.7 shrink merged pixels into blobs, so the terminal crew is now drawn for text on its own 7×6 grid: three lines tall (the height of a row's text), 7 columns wide (was 8). A round head, a hat, two-pixel eyes, one small mouth and walking legs; dark hats are lifted so they show on a dark terminal. Desktop, VS Code and browser mascots are unchanged.
+
 ## 1.6.7 — 2026-10-12
 
 - **Smaller terminal mascots.** The half-block crew in the terminal panel is about 30% smaller: 6 columns by 2 lines (was 8 by 3). It is still drawn on the 8×6 grid and then shrunk, keeping hat, eyes, blush, gear and legs; the chin row (mouth, beard, scarf, belt) is dropped. Desktop, VS Code and browser mascots are unchanged.
